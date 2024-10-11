@@ -48,7 +48,7 @@ public:
     void parseMetaData(CanFrame* rxFrame);
     KWP_FRAME_TYPE processCanFrame(CanFrame* rxFrame);
     void sendKwpFrame(bool singleShot = false,bool loopBack = false);
-    void printKwpFrame(Stream& targetStream);
+    void printKwpFrame(Stream& targetStream = Serial);
     void resetFrame();
     void attachDebugSerial(Stream& targetSerial);
 private:

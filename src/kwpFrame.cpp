@@ -75,6 +75,11 @@ KWP_FRAME_TYPE kwpFrame::processCanFrame(CanFrame *rxFrame)
             } 
             break;
         case flowControlFrame:
+            if(!pendingFCFrame) {
+                #ifdef SERIAL_DEBUG
+                    _debugSerial.println("ERROR: Unexpected FlowControl frame");
+                #endif
+            }
             break;
         default:
             #ifdef SERIAL_DEBUG
@@ -163,7 +168,7 @@ void kwpFrame::sendKwpFrame(bool singleShot ,bool loopBack)
             }
             ESP32Can.writeFrame(txFrame,0);
             #ifdef SERIAL_DEBUG
-                _debugSerial.printf("\t\tSENT with seq number 0x%02x\n",seqNumber);
+                _debugSerial.printf("\t\tSENT with seq number 0x%02X\n",seqNumber);
             #endif
             seqNumber++;
         }  
