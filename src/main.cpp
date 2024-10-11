@@ -1,14 +1,16 @@
 #include <Arduino.h>
 #include "kwpDaemon.h"
 
-
-#define CAN_TX D2
-#define CAN_RX D1
+#ifndef CAN_TX
+  #define CAN_TX D2
+#endif
+#ifndef CAN_RX
+  #define CAN_RX D1
+#endif
 
 CanFrame rxFrame = {0};
 
 kwpDaemon moloch;
-
 
 void setup() {
 

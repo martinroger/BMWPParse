@@ -1,5 +1,7 @@
 #include "kwpFrame.h"
 
+/// @brief Parse essential metadata (target, sender, type) from a candidate CANFrame
+/// @param rxFrame Candidate CAN Frame that might be a KWP Frame
 void kwpFrame::parseMetaData(CanFrame* rxFrame)
 {
     sender = rxFrame->identifier & 0xFF;
@@ -13,6 +15,9 @@ void kwpFrame::parseMetaData(CanFrame* rxFrame)
     }
 }
 
+/// @brief 
+/// @param rxFrame 
+/// @return 
 KWP_FRAME_TYPE kwpFrame::processCanFrame(CanFrame *rxFrame)
 {
     parseMetaData(rxFrame);
@@ -90,6 +95,9 @@ KWP_FRAME_TYPE kwpFrame::processCanFrame(CanFrame *rxFrame)
     return frameType;
 }
 
+/// @brief 
+/// @param singleShot When true, the frame broadcast will only be attempted once. False by default.
+/// @param loopBack When true, the CAN frames that are sent will be detected on the RX side. False by default.
 void kwpFrame::sendKwpFrame(bool singleShot ,bool loopBack)
 {
     CanFrame txFrame;
@@ -176,6 +184,8 @@ void kwpFrame::sendKwpFrame(bool singleShot ,bool loopBack)
     }
 }
 
+/// @brief 
+/// @param targetStream 
 void kwpFrame::printKwpFrame(Stream& targetStream)
 {
     
@@ -193,6 +203,7 @@ void kwpFrame::printKwpFrame(Stream& targetStream)
     }
 }
 
+/// @brief Used to reset Frames when in Timeout
 void kwpFrame::resetFrame()
 {
     target = 0x00;
@@ -206,6 +217,8 @@ void kwpFrame::resetFrame()
     TXComplete     =   true;
 }
 
+/// @brief 
+/// @param targetSerial 
 void kwpFrame::attachDebugSerial(Stream &targetSerial)
 {
     _debugSerial = targetSerial;

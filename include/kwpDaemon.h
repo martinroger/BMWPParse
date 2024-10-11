@@ -3,15 +3,18 @@
 #include <AH/Timing/MillisMicrosTimer.hpp>
 #include "kwpFrame.h"
 
+/// @brief Possible Daemon states
 enum KWP_DAEMON_STATE 
 {
-  INIT, //Starting state, will attempt to go clear the DDLI
-  DDLI_CLEAR, //Request to clear the DDLI is sent out, waiting for Positive Response
-  DDLI_SETUP, //Positive clear, request to setup the DDLI and wait
-  DDLI_REQUEST, //DDLI setup successfully, read DDLI
-  DDLI_PARSE //Positive response and DDLI received, parse and revert to DDLI_REQUEST
+  SLEEP,        //Starting transition, CAN status unknown/disabled. Moves to INIT when CAN traffic is observed
+  INIT,         //CAN enabled, transitions out to DDLI_CLEAR after the clear requests is sent
+  DDLI_CLEAR,   //DDLI clear request pending, transitions to DDLI_SETUP on positive response, back to INIT on negative response
+  DDLI_SETUP,   //DDLI setup request pending, transitions to DDLI_REQUEST on positive response, back to DDLI_CLEAR after negative response (and new clear request)
+  DDLI_REQUEST, //DDLI read request pending, transitions to DDLI_PARSE on positive response, back to DDLI_CLEAR after negative response (and new clear request)
+  DDLI_PARSE    //Moves back to DDLI_REQUEST after successful parsing of DDLI data, otherwise back to DDLI_CLEAR in case of issues (and new clear request)
 };
 
+/// @brief 
 class kwpDaemon
 {
     public:
@@ -21,7 +24,7 @@ class kwpDaemon
         Timer<millis> refreshInterval = 100;
         kwpFrame rxKwpFrame;
         kwpFrame txKwpFrame;
-        KWP_DAEMON_STATE state = INIT;
+        KWP_DAEMON_STATE state = SLEEP;
         void sendFlowControlFrame(byte sender, byte target); //Could be private
         bool processIncomingCANFrame(CanFrame rxFrame);
         void attachDebugSerial(Stream& targetSerial = Serial);

@@ -1,5 +1,8 @@
 #include "kwpDaemon.h"
 
+/// @brief Utility sender that broadcasts a simple FlowControl frame at the attention of a target
+/// @param sender Byte ID of the sender of the FlowControl frame (based on 0x600 + sender)
+/// @param target Byte ID of the receiver waiting for the FlowControl frame (based on 0x600 + target)
 void kwpDaemon::sendFlowControlFrame(byte sender, byte target)
 {
     CanFrame FCFrame = {0};
@@ -16,6 +19,9 @@ void kwpDaemon::sendFlowControlFrame(byte sender, byte target)
     #endif
 }
 
+/// @brief Main reaction-based processor of incoming CANFrame. Uses SID-based logic for follow-up actions
+/// @param rxFrame Incoming CAN Frame to be examined and reacted to by the daemon.
+/// @return True if rxFrame is successfully processed into a KWPFrame, false otherwise.
 bool kwpDaemon::processIncomingCANFrame(CanFrame rxFrame)
 {
     bool ret = false;
@@ -64,18 +70,22 @@ bool kwpDaemon::processIncomingCANFrame(CanFrame rxFrame)
     return ret;
 }
 
+/// @brief Attaches a target Serial for debug messages
+/// @param targetSerial Stream (usually a Serial) on which to broadcast debug messages.
 void kwpDaemon::attachDebugSerial(Stream &targetSerial)
 {
     _debugSerial = targetSerial;
 }
 
+/// @brief Used to completely reset the daemon and its frame to a SLEEP state
 void kwpDaemon::reset()
 {
-    state = INIT;
+    state = SLEEP;
     rxKwpFrame.resetFrame();
     rxKwpFrame.resetFrame();
 }
 
+/// @brief Ticker for possible state transitions at regular intervals
 void kwpDaemon::tick()
 {
     //Do the laundry

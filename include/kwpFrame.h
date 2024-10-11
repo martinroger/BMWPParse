@@ -20,6 +20,7 @@ T swap_endian(T u)
     return dest.u;
 }
 
+/// @brief 
 enum KWP_FRAME_TYPE : byte
 {
     singleFrame         =   0x00,
@@ -29,6 +30,7 @@ enum KWP_FRAME_TYPE : byte
     invalidFrameType    =   0xFF
 };
 
+/// @brief 
 class kwpFrame
 {
 public:
