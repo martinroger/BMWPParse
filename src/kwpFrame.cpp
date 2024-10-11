@@ -19,7 +19,11 @@ KWP_FRAME_TYPE kwpFrame::processCanFrame(CanFrame *rxFrame)
     
     switch(frameType) {
         case singleFrame:
-            if(!RXComplete) Serial.println("ERROR: SingleFrame received while another frame is incomplete");
+            if(!RXComplete) {
+                #ifdef SERIAL_DEBUG
+                    _debugSerial.println("ERROR: SingleFrame received while another frame is incomplete");
+                #endif  
+            }
             else {
                 length          = rxFrame->data[1];
                 payloadLength   = length-1;
@@ -33,7 +37,11 @@ KWP_FRAME_TYPE kwpFrame::processCanFrame(CanFrame *rxFrame)
             }
             break;
         case firstFrame:
-            if(!RXComplete) Serial.println("ERROR: FirstFrame received while another frame is incomplete");
+            if(!RXComplete){
+                #ifdef SERIAL_DEBUG
+                    _debugSerial.println("ERROR: FirstFrame received while another frame is incomplete");
+                #endif  
+            } 
             else {
                 length          = (swap_endian<uint16_t>(*((uint16_t*)&(rxFrame->data[1]))) & 0x0FFF);
                 payloadLength   = length -1;
@@ -60,35 +68,46 @@ KWP_FRAME_TYPE kwpFrame::processCanFrame(CanFrame *rxFrame)
                     }
                 }
             }
-            else Serial.println("ERROR: ContinuationFrame without FirstFrame");
+            else {
+                #ifdef SERIAL_DEBUG
+                    _debugSerial.println("ERROR: ContinuationFrame without FirstFrame");
+                #endif
+            } 
             break;
         case flowControlFrame:
             break;
         default:
-            Serial.println("ERROR: Not a valid FrameType");
+            #ifdef SERIAL_DEBUG
+                _debugSerial.println("ERROR: Not a valid FrameType");
+            #endif
             break;
     }
     return frameType;
 }
 
-void kwpFrame::sendKwpFrame()
+void kwpFrame::sendKwpFrame(bool singleShot ,bool loopBack)
 {
     CanFrame txFrame;
     txFrame.data_length_code = 8;
     txFrame.identifier = (0x600 + sender);
+    txFrame.ss = (int)singleShot;
+    txFrame.self = (int)loopBack;
     for (int i = 0; i < 8; i++)
     {
-        txFrame.data[i] = 0xAA;
+        txFrame.data[i] = 0xFF;
     }
     txFrame.data[0] = target;
-    Serial.printf("\t txFrame ready\n");
-    Serial.printf("\t pendingFCFrame: %d RXComplete: %d TXComplete: %d Length: %d PayloadLength: %d Cursor: %d \n",pendingFCFrame,RXComplete,TXComplete,length,payloadLength,cursor);
-
+    #ifdef SERIAL_DEBUG
+        _debugSerial.printf("%d sendKWPFrame",__LINE__);
+        _debugSerial.printf("\t pendingFCFrame: %d RXComplete: %d TXComplete: %d Length: %d PayloadLength: %d Cursor: %d \n",pendingFCFrame,RXComplete,TXComplete,length,payloadLength,cursor);
+    #endif
     if(!pendingFCFrame && TXComplete) { //Not pending a FCFrame and TX is complete
         TXComplete = false;
         if (length<=6) //SingleFrame is doable
         {
-            Serial.printf("\tSingleFrame");
+            #ifdef SERIAL_DEBUG
+                _debugSerial.printf("\tSingleFrame");
+            #endif
             txFrame.data[1] = (byte)length;
             txFrame.data[2] = SID;
             for (int i = 0; i < payloadLength; i++)
@@ -96,16 +115,18 @@ void kwpFrame::sendKwpFrame()
                 txFrame.data[i+3] = payload[i];
             }
             ESP32Can.writeFrame(txFrame);
-            Serial.printf("\t SENT\n");
             TXComplete = true;
+            #ifdef SERIAL_DEBUG
+                _debugSerial.printf("\t SENT\n");
+            #endif
         }
         else //It is a first MF
         {
-            Serial.printf("\tMultiFrame first part");
+            #ifdef SERIAL_DEBUG
+                _debugSerial.printf("\tMultiFrame first part");
+            #endif
             cursor = 0;
             seqNumber = 1;
-            //length          = (swap_endian<uint16_t>(*((uint16_t*)&(rxFrame->data[1]))) & 0x0FFF);
-            //*((uint16_t*)&(txFrame.data[1])) = swap_endian<uint16_t>(length) + 0x1000;
             txFrame.data[1] = 0x10 + ((length & 0x0F00)>>8);
             txFrame.data[2] = (length & 0xFF);
             txFrame.data[3] = SID;
@@ -115,14 +136,17 @@ void kwpFrame::sendKwpFrame()
                 cursor++;
             }
             ESP32Can.writeFrame(txFrame);
-            Serial.printf("\t SENT\n");
             pendingFCFrame = true;
-
+            #ifdef SERIAL_DEBUG
+                _debugSerial.printf("\t SENT\n");
+            #endif
         }
     }
     else //Pending FC Frame... assumes this is in reaction to a FC frame and the transfer is incomplete
     {
-        Serial.printf("\tStarting after Continuation Frame");
+        #ifdef SERIAL_DEBUG
+            _debugSerial.printf("\tStarting after Continuation Frame\n");
+        #endif
         while(!TXComplete) {
             txFrame.data[1] = 0x20 + seqNumber;
             for (int i = 0; i < 6; i++)
@@ -134,30 +158,50 @@ void kwpFrame::sendKwpFrame()
                 else
                 {
                     TXComplete = true;
-                    break;
+                    txFrame.data[2+i] = 0xFF;
                 }
             }
             ESP32Can.writeFrame(txFrame,0);
-            Serial.printf("\t SENT with seq number 0x%x\n",seqNumber);
+            #ifdef SERIAL_DEBUG
+                _debugSerial.printf("\t\tSENT with seq number 0x%02x\n",seqNumber);
+            #endif
             seqNumber++;
         }  
         pendingFCFrame = false;
     }
 }
 
-void kwpFrame::printKwpFrame()
+void kwpFrame::printKwpFrame(Stream& targetStream)
 {
     
     if(RXComplete && (frameType != invalidFrameType && frameType != flowControlFrame)) {
-        Serial.printf("%02X | Sender: %02X Target: %02X SID: %02X PayloadLength: %3d |  ",frameType,sender,target,SID,payloadLength); 
+        targetStream.printf("%02X | Sender: %02X Target: %02X SID: %02X PayloadLength: %3d |  ",frameType,sender,target,SID,payloadLength); 
         for (int i = 0; i < payloadLength; i++)
         {
-        Serial.printf("%02X ",payload[i]);
+        targetStream.printf("%02X ",payload[i]);
         }
-        Serial.println();
+        targetStream.println();
     }
     else if (frameType == flowControlFrame)
     {
-        Serial.printf("FC TX: %02X RX: %02X\n",sender,target);
+        targetStream.printf("FC TX: %02X RX: %02X\n",sender,target);
     }
+}
+
+void kwpFrame::resetFrame()
+{
+    target = 0x00;
+    sender = 0x00;
+    SID = 0x00;
+    length = 2;
+    payloadLength = 1;
+    cursor = 0;
+    RXComplete     =   true;
+    pendingFCFrame =   false;
+    TXComplete     =   true;
+}
+
+void kwpFrame::attachDebugSerial(Stream &targetSerial)
+{
+    _debugSerial = targetSerial;
 }
