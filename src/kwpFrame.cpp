@@ -126,13 +126,15 @@ void kwpFrame::sendKwpFrame(bool singleShot ,bool loopBack)
 			#ifdef SERIAL_DEBUG
 				_debugSerial.printf("Ln%D\t\tSingleFrame",__LINE__);
 			#endif
+			cursor = 0;
 			txFrame.data[1] = (byte)length;
 			txFrame.data[2] = SID;
 			for (int i = 0; i < payloadLength; i++)
 			{
 				txFrame.data[i+3] = payload[i];
+				cursor++;
 			}
-			ESP32Can.writeFrame(txFrame);
+			ESP32Can.writeFrame(txFrame,5);
 			TXComplete = true;
 			#ifdef SERIAL_DEBUG
 				_debugSerial.printf("\t SENT\n");
@@ -153,7 +155,7 @@ void kwpFrame::sendKwpFrame(bool singleShot ,bool loopBack)
 				txFrame.data[4+i]=payload[i];
 				cursor++;
 			}
-			ESP32Can.writeFrame(txFrame);
+			ESP32Can.writeFrame(txFrame,5);
 			pendingFCFrame = true;
 			#ifdef SERIAL_DEBUG
 				_debugSerial.printf("\t SENT\n");
@@ -179,7 +181,7 @@ void kwpFrame::sendKwpFrame(bool singleShot ,bool loopBack)
 					txFrame.data[2+i] = 0xFF;
 				}
 			}
-			ESP32Can.writeFrame(txFrame,0);
+			ESP32Can.writeFrame(txFrame,5);
 			#ifdef SERIAL_DEBUG
 				_debugSerial.printf("Ln%D\t\t\tSENT with seq number 0x%02X\n",__LINE__,seqNumber);
 			#endif

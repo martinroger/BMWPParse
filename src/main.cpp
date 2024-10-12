@@ -10,6 +10,9 @@
 
 CanFrame rxFrame = {0};
 bool canState;
+Timer<millis> refreshInterval = 250;
+uint32_t previousTS;
+#define REFINTERVAL 1000
 
 kwpDaemon moloch;
 
@@ -27,15 +30,17 @@ void setup() {
 	#endif
 
 	ESP32Can.setPins(CAN_TX,CAN_RX);
-	ESP32Can.setRxQueueSize(64);
-	ESP32Can.setTxQueueSize(64);
+	ESP32Can.setRxQueueSize(128);
+	ESP32Can.setTxQueueSize(128);
 	ESP32Can.setSpeed(ESP32Can.convertSpeed(500));
 	canState = ESP32Can.begin();
 
 	moloch.attachDataHandler(parseHandler);
 
-	delay(15000);
-
+	while(!Serial) {
+		delay(10);
+	}
+	refreshInterval.beginNextPeriod();
 }
 
 void loop() {
@@ -55,8 +60,10 @@ void loop() {
 				digitalWrite(LED_BUILTIN,HIGH);
 		#endif
 	}
-
-	moloch.tick(canState);
+	if(millis()-previousTS>REFINTERVAL) {
+		moloch.tick(canState);
+		previousTS = millis();
+	}
 }
 
 

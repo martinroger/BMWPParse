@@ -13,7 +13,7 @@ void kwpDaemon::sendFlowControlFrame(byte sender, byte target)
 	FCFrame.data[0] = target;
 	FCFrame.data[1] = 0x30;
 
-	ESP32Can.writeFrame(FCFrame);
+	ESP32Can.writeFrame(FCFrame,5);
 	#ifdef SERIAL_DEBUG
 		_debugSerial.printf("Ln%D\tFC frame sent from 0x6%02X to 0x6%02X\n",__LINE__,sender,target);
 	#endif
@@ -74,7 +74,7 @@ bool kwpDaemon::processIncomingCANFrame(CanFrame rxFrame)
 				break;
 		}
 	}
-	if(ret) timeOut.beginNextPeriod(); //Reset the timer
+	//if(ret) timeOut.beginNextPeriod(); //Reset the timer
 	return ret;
 }
 
@@ -91,12 +91,13 @@ void kwpDaemon::processIncomingSID()
 			#ifdef SERIAL_DEBUG
 				_debugSerial.printf("Ln%D\t0x%02X\tPositive response to DDLI\n",__LINE__,rxKwpFrame.SID);
 			#endif
-			switch (state)
+			KWP_DAEMON_STATE prevState = state;
+			switch (prevState)
 			{
 			case DDLI_CLEAR:
 				setupDDLI(ID,target);
 				state = DDLI_SETUP;
-				timeOut.beginNextPeriod();
+				//timeOut.beginNextPeriod();
 				#ifdef SERIAL_DEBUG
 					_debugSerial.printf("Ln%D\t\tTransition from DDLI_CLEAR to DDLI_SETUP\n",__LINE__);
 				#endif
@@ -104,7 +105,7 @@ void kwpDaemon::processIncomingSID()
 			case DDLI_SETUP:
 				requestDDLI(ID,target);
 				state = DDLI_REQUEST;
-				timeOut.beginNextPeriod();
+				//timeOut.beginNextPeriod();
 				#ifdef SERIAL_DEBUG
 					_debugSerial.printf("Ln%D\t\tTransition from DDLI_SETUP to DDLI_REQUEST\n",__LINE__);
 				#endif
@@ -136,14 +137,14 @@ void kwpDaemon::processIncomingSID()
 					_debugSerial.printf("Ln%D\t\tTransition from DDLI_REQUEST to DDLI_CLEAR\n",__LINE__);
 				#endif
 			}
-			timeOut.beginNextPeriod();
+			//timeOut.beginNextPeriod();
 		}
 		break;
 	case 0x7F: //Negative Response
 		#ifdef SERIAL_DEBUG
 			_debugSerial.printf("Ln%D\tNegative Response to SID 0x%02X\n",__LINE__,rxKwpFrame.payload[0]);
 		#endif
-		reset();
+		//reset();
 		break;
 	default:
 		#ifdef SERIAL_DEBUG
@@ -254,26 +255,26 @@ void kwpDaemon::reset()
 	#endif
 	state = SLEEP;
 	rxKwpFrame.resetFrame();
-	txKwpFrame = nullptr;
+	txKwpFrame = &_clearRequest;
 	_clearRequest.resetFrame();
 	_readDDLI.resetFrame();
 	_setupDDLI.resetFrame();
-	timeOut.beginNextPeriod();
+	//timeOut.beginNextPeriod();
 }
 
 /// @brief Ticker of the daemon. Can be called systematically, will operate some state changes
 /// @param canState Status of the CAN connection (true is up, false is down)
 void kwpDaemon::tick(bool canState)
 {
-	if(refreshInterval) {
-		switch (state)
+		KWP_DAEMON_STATE previousState = state;
+		switch (previousState)
 		{
 		case SLEEP:
 			if(canState) state = INIT;
 			#ifdef SERIAL_DEBUG
 				_debugSerial.printf("Ln%D\tTICK transition from SLEEP to INIT\n",__LINE__);
 			#endif
-			timeOut.beginNextPeriod();
+			//timeOut.beginNextPeriod();
 			break;
 		case INIT:
 			#ifdef SERIAL_DEBUG
@@ -283,33 +284,35 @@ void kwpDaemon::tick(bool canState)
 			state = DDLI_CLEAR;
 			break;
 		case DDLI_CLEAR:
-			if(timeOut) {
-				state = INIT;
-				timeOut.beginNextPeriod();
-				#ifdef SERIAL_DEBUG
-					_debugSerial.printf("Ln%D\tTICK TIMEOUT from DDLI_CLEAR to INIT\n",__LINE__);
-				#endif
-			}
+			// if(timeOut) {
+			// 	state = INIT;
+			// 	//timeOut.beginNextPeriod();
+			// 	#ifdef SERIAL_DEBUG
+			// 		_debugSerial.printf("Ln%D\tTICK TIMEOUT from DDLI_CLEAR to INIT\n",__LINE__);
+			// 	#endif
+			// }
+			clearDDLI(ID,target);
+			state = DDLI_CLEAR;
 			break;
 		case DDLI_SETUP:
-			if(timeOut) {
-				clearDDLI(ID,target);
-				state = DDLI_CLEAR;
-				timeOut.beginNextPeriod();
-				#ifdef SERIAL_DEBUG
-					_debugSerial.printf("Ln%D\tTICK TIMEOUT from DDLI_SETUP to DDLI_CLEAR\n",__LINE__);
-				#endif
-			}
+			// if(timeOut) {
+			// 	clearDDLI(ID,target);
+			// 	state = DDLI_CLEAR;
+			// 	//timeOut.beginNextPeriod();
+			// 	#ifdef SERIAL_DEBUG
+			// 		_debugSerial.printf("Ln%D\tTICK TIMEOUT from DDLI_SETUP to DDLI_CLEAR\n",__LINE__);
+			// 	#endif
+			// }
 			break;
 		case DDLI_REQUEST:
-			if(timeOut) {
-				clearDDLI(ID,target);
-				state = DDLI_CLEAR;
-				timeOut.beginNextPeriod();
-				#ifdef SERIAL_DEBUG
-					_debugSerial.printf("Ln%D\tTICK TIMEOUT from DDLI_REQUEST to DDLI_CLEAR\n",__LINE__);
-				#endif
-			}
+			// if(timeOut) {
+			// 	clearDDLI(ID,target);
+			// 	state = DDLI_CLEAR;
+			// 	//timeOut.beginNextPeriod();
+			// 	#ifdef SERIAL_DEBUG
+			// 		_debugSerial.printf("Ln%D\tTICK TIMEOUT from DDLI_REQUEST to DDLI_CLEAR\n",__LINE__);
+			// 	#endif
+			// }
 			break;
 		case DDLI_PARSE:
 			#ifdef SERIAL_DEBUG
@@ -321,7 +324,6 @@ void kwpDaemon::tick(bool canState)
 			state = DDLI_REQUEST;
 			break;
 		}
-	}
 	
 	if(!canState) state = SLEEP;
 }

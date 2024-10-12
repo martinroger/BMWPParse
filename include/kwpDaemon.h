@@ -22,8 +22,8 @@ class kwpDaemon
 
 		byte ID = 0xF1;
 		byte target = 0x12;
-		Timer<millis> timeOut = 10000;
-		Timer<millis> refreshInterval = 250;
+		//Timer<millis> timeOut = 10000;
+		//Timer<millis> refreshInterval = 250;
 		kwpFrame rxKwpFrame;
 		kwpFrame* txKwpFrame;
 		KWP_DAEMON_STATE state = SLEEP;
