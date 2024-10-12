@@ -1,6 +1,10 @@
 #pragma once
 #include <ESP32-TWAI-CAN.hpp>
 
+#ifndef TX_FRAME_TIMEOUT
+	#define TX_FRAME_TIMEOUT 5
+#endif
+
 template <typename T>
 T swap_endian(T u)
 {

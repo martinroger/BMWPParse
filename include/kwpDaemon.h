@@ -3,6 +3,11 @@
 #include <AH/Timing/MillisMicrosTimer.hpp>
 #include "kwpFrame.h"
 
+#ifndef TX_FRAME_TIMEOUT
+	#define TX_FRAME_TIMEOUT 5
+#endif
+
+
 /// @brief Possible Daemon states
 enum KWP_DAEMON_STATE 
 {

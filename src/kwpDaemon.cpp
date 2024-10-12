@@ -5,6 +5,10 @@
 /// @param target Byte ID of the receiver waiting for the FlowControl frame (based on 0x600 + target)
 void kwpDaemon::sendFlowControlFrame(byte sender, byte target)
 {
+	#ifdef KWP_DAEMON_DEBUG
+		_debugSerial.printf("Ln%D\tSending FC Frame...\n",__LINE__);    
+	#endif
+
 	CanFrame FCFrame = {0};
 	FCFrame.identifier = 0x600 + sender;
 	FCFrame.data_length_code = 8;
@@ -13,10 +17,10 @@ void kwpDaemon::sendFlowControlFrame(byte sender, byte target)
 	FCFrame.data[0] = target;
 	FCFrame.data[1] = 0x30;
 
-	ESP32Can.writeFrame(FCFrame,5);
-	#ifdef SERIAL_DEBUG
-		_debugSerial.printf("Ln%D\tFC frame sent from 0x6%02X to 0x6%02X\n",__LINE__,sender,target);
-	#endif
+	ESP32Can.writeFrame(FCFrame,TX_FRAME_TIMEOUT);
+	// #ifdef KWP_DAEMON_DEBUG
+	// 	_debugSerial.printf("Ln%D\tFC frame sent from 0x6%02X to 0x6%02X\n",__LINE__,sender,target);
+	// #endif
 }
 
 /// @brief Main reaction-based processor of incoming CANFrame. Uses SID-based logic for follow-up actions
@@ -27,14 +31,14 @@ bool kwpDaemon::processIncomingCANFrame(CanFrame rxFrame)
 	bool ret = false;
 	if(((rxFrame.identifier & 0xF00) == (0x600)) && (rxFrame.data[0]==ID)) //If this message is targeted at daemon
 	{  
-		#ifdef SERIAL_DEBUG
+		#ifdef KWP_DAEMON_DEBUG
 			_debugSerial.printf("Ln%D\tFrame received for Daemon\n",__LINE__);
 		#endif
 		rxKwpFrame.processCanFrame(&rxFrame);
 		switch (rxKwpFrame.frameType) //Choose response based on the incoming frameType
 		{
 			case singleFrame:
-				#ifdef SERIAL_DEBUG
+				#ifdef KWP_DAEMON_DEBUG
 					_debugSerial.printf("Ln%D\tType: Single Frame\n",__LINE__);
 					rxKwpFrame.printKwpFrame(_debugSerial);
 				#endif
@@ -42,7 +46,7 @@ bool kwpDaemon::processIncomingCANFrame(CanFrame rxFrame)
 				ret = true;
 				break;
 			case flowControlFrame:
-				#ifdef SERIAL_DEBUG
+				#ifdef KWP_DAEMON_DEBUG
 					_debugSerial.printf("Ln%D\tType: Flow Control Frame\n",__LINE__);
 					rxKwpFrame.printKwpFrame(_debugSerial);
 				#endif
@@ -51,7 +55,7 @@ bool kwpDaemon::processIncomingCANFrame(CanFrame rxFrame)
 				break;
 			case continuationFrame:
 				if(rxKwpFrame.RXComplete) {
-					#ifdef SERIAL_DEBUG
+					#ifdef KWP_DAEMON_DEBUG
 						_debugSerial.printf("Ln%D\tType: Continuation Frame (complete)\n",__LINE__);
 						rxKwpFrame.printKwpFrame(_debugSerial);
 					#endif
@@ -60,14 +64,14 @@ bool kwpDaemon::processIncomingCANFrame(CanFrame rxFrame)
 				ret = true;
 				break;
 			case firstFrame:
-				#ifdef SERIAL_DEBUG
+				#ifdef KWP_DAEMON_DEBUG
 						_debugSerial.printf("Ln%D\tType: First Frame\n",__LINE__);
 				#endif
 				sendFlowControlFrame(ID,rxKwpFrame.sender);
 				ret = true;
 				break;
 			default:
-				#ifdef SERIAL_DEBUG
+				#ifdef KWP_DAEMON_DEBUG
 					_debugSerial.printf("Ln%D\tInvalid FrameType\n",__LINE__);
 				#endif
 				ret = false;
@@ -81,14 +85,14 @@ bool kwpDaemon::processIncomingCANFrame(CanFrame rxFrame)
 /// @brief Process incoming response SIDs and perform related state changes
 void kwpDaemon::processIncomingSID()
 {
-	#ifdef SERIAL_DEBUG
+	#ifdef KWP_DAEMON_DEBUG
 		_debugSerial.printf("Ln%D\tProcessing SID\n",__LINE__);
 	#endif
 	switch (rxKwpFrame.SID)
 	{
 	case 0x6C: //dynamicallyDefineLocalIdentifier
 		if(rxKwpFrame.payload[0]==0xF0) {//Positive response for DDLI F0
-			#ifdef SERIAL_DEBUG
+			#ifdef KWP_DAEMON_DEBUG
 				_debugSerial.printf("Ln%D\t0x%02X\tPositive response to DDLI\n",__LINE__,rxKwpFrame.SID);
 			#endif
 			KWP_DAEMON_STATE prevState = state;
@@ -98,7 +102,7 @@ void kwpDaemon::processIncomingSID()
 				setupDDLI(ID,target);
 				state = DDLI_SETUP;
 				//timeOut.beginNextPeriod();
-				#ifdef SERIAL_DEBUG
+				#ifdef KWP_DAEMON_DEBUG
 					_debugSerial.printf("Ln%D\t\tTransition from DDLI_CLEAR to DDLI_SETUP\n",__LINE__);
 				#endif
 				break;
@@ -106,13 +110,13 @@ void kwpDaemon::processIncomingSID()
 				requestDDLI(ID,target);
 				state = DDLI_REQUEST;
 				//timeOut.beginNextPeriod();
-				#ifdef SERIAL_DEBUG
+				#ifdef KWP_DAEMON_DEBUG
 					_debugSerial.printf("Ln%D\t\tTransition from DDLI_SETUP to DDLI_REQUEST\n",__LINE__);
 				#endif
 				break;
 			default:
 				//state = INIT;
-				#ifdef SERIAL_DEBUG
+				#ifdef KWP_DAEMON_DEBUG
 					_debugSerial.printf("Ln%D\t\tUnexpected Daemon state: %d\n",__LINE__,state);
 				#endif
 				break;
@@ -120,20 +124,20 @@ void kwpDaemon::processIncomingSID()
 		}
 		break;
 	case 0x61: //readDataByCommonIdentifier
-		#ifdef SERIAL_DEBUG
+		#ifdef KWP_DAEMON_DEBUG
 			_debugSerial.printf("Ln%D\t0x%02X\tPositive response to readDataByCommonIdentifier\n",__LINE__,rxKwpFrame.SID);
 		#endif
 		if(rxKwpFrame.payload[0]==0xF0 && state == DDLI_REQUEST) {
 			if(parseDDLI()) {
 				state = DDLI_PARSE; //Revert back to Request when successfully parsing
-				#ifdef SERIAL_DEBUG
+				#ifdef KWP_DAEMON_DEBUG
 					_debugSerial.printf("Ln%D\t\tTransition from DDLI_REQUEST to DDLI_PARSE\n",__LINE__);
 				#endif
 			}
 			else {
 				clearDDLI(ID,target); //Or try to clear
 				state = DDLI_CLEAR;
-				#ifdef SERIAL_DEBUG
+				#ifdef KWP_DAEMON_DEBUG
 					_debugSerial.printf("Ln%D\t\tTransition from DDLI_REQUEST to DDLI_CLEAR\n",__LINE__);
 				#endif
 			}
@@ -141,13 +145,13 @@ void kwpDaemon::processIncomingSID()
 		}
 		break;
 	case 0x7F: //Negative Response
-		#ifdef SERIAL_DEBUG
+		#ifdef KWP_DAEMON_DEBUG
 			_debugSerial.printf("Ln%D\tNegative Response to SID 0x%02X\n",__LINE__,rxKwpFrame.payload[0]);
 		#endif
 		//reset();
 		break;
 	default:
-		#ifdef SERIAL_DEBUG
+		#ifdef KWP_DAEMON_DEBUG
 			_debugSerial.printf("Ln%D\tUnrecognized SID 0x%02X\n",__LINE__,rxKwpFrame.SID);
 		#endif
 		break;
@@ -159,7 +163,7 @@ void kwpDaemon::processIncomingSID()
 /// @param target Intended target of the request
 void kwpDaemon::clearDDLI(byte sender, byte target)
 {
-	#ifdef SERIAL_DEBUG
+	#ifdef KWP_DAEMON_DEBUG
 		_debugSerial.printf("Ln%D\tSending DDLI Clear...\n",__LINE__);    
 	#endif
 	_clearRequest.target = target;
@@ -178,7 +182,7 @@ void kwpDaemon::clearDDLI(byte sender, byte target)
 /// @param target Intended target of the request
 void kwpDaemon::setupDDLI(byte sender, byte target)
 {
-	#ifdef SERIAL_DEBUG
+	#ifdef KWP_DAEMON_DEBUG
 		_debugSerial.printf("Ln%D\tSetting up DDLI...\n",__LINE__);    
 	#endif
 	_setupDDLI.target = target;
@@ -211,7 +215,7 @@ void kwpDaemon::setupDDLI(byte sender, byte target)
 /// @param target Intended target of the request
 void kwpDaemon::requestDDLI(byte sender, byte target)
 {
-	#ifdef SERIAL_DEBUG
+	#ifdef KWP_DAEMON_DEBUG
 		_debugSerial.printf("Ln%D\tRequesting DDLI Read...\n",__LINE__);     
 	#endif
 	_readDDLI.target = target;
@@ -228,12 +232,12 @@ void kwpDaemon::requestDDLI(byte sender, byte target)
 /// @return True in absence of error, false otherwise
 bool kwpDaemon::parseDDLI()
 {
-	#ifdef SERIAL_DEBUG
+	#ifdef KWP_DAEMON_DEBUG
 		_debugSerial.printf("Ln%D\tParsing DDLI...",__LINE__);     
 	#endif
 	bool ret = false;
 	if(rxKwpFrame.payloadLength==13) ret = true;
-	#ifdef SERIAL_DEBUG
+	#ifdef KWP_DAEMON_DEBUG
 		if(ret)	_debugSerial.printf("Success\n");     
 		else _debugSerial.printf("Fail\n");
 	#endif
@@ -250,7 +254,7 @@ void kwpDaemon::attachDebugSerial(Stream &targetSerial)
 /// @brief Used to completely reset the daemon and its frame to a SLEEP state
 void kwpDaemon::reset()
 {
-	#ifdef SERIAL_DEBUG
+	#ifdef KWP_DAEMON_DEBUG
 		_debugSerial.printf("Ln%D\tResetting daemon...\n",__LINE__);     
 	#endif
 	state = SLEEP;
@@ -271,13 +275,13 @@ void kwpDaemon::tick(bool canState)
 		{
 		case SLEEP:
 			if(canState) state = INIT;
-			#ifdef SERIAL_DEBUG
+			#ifdef KWP_DAEMON_DEBUG
 				_debugSerial.printf("Ln%D\tTICK transition from SLEEP to INIT\n",__LINE__);
 			#endif
 			//timeOut.beginNextPeriod();
 			break;
 		case INIT:
-			#ifdef SERIAL_DEBUG
+			#ifdef KWP_DAEMON_DEBUG
 				_debugSerial.printf("Ln%D\tTICK transition from INIT to DDLI_CLEAR\n",__LINE__);
 			#endif
 			clearDDLI(ID,target);
@@ -287,7 +291,7 @@ void kwpDaemon::tick(bool canState)
 			// if(timeOut) {
 			// 	state = INIT;
 			// 	//timeOut.beginNextPeriod();
-			// 	#ifdef SERIAL_DEBUG
+			// 	#ifdef KWP_DAEMON_DEBUG
 			// 		_debugSerial.printf("Ln%D\tTICK TIMEOUT from DDLI_CLEAR to INIT\n",__LINE__);
 			// 	#endif
 			// }
@@ -299,7 +303,7 @@ void kwpDaemon::tick(bool canState)
 			// 	clearDDLI(ID,target);
 			// 	state = DDLI_CLEAR;
 			// 	//timeOut.beginNextPeriod();
-			// 	#ifdef SERIAL_DEBUG
+			// 	#ifdef KWP_DAEMON_DEBUG
 			// 		_debugSerial.printf("Ln%D\tTICK TIMEOUT from DDLI_SETUP to DDLI_CLEAR\n",__LINE__);
 			// 	#endif
 			// }
@@ -309,13 +313,13 @@ void kwpDaemon::tick(bool canState)
 			// 	clearDDLI(ID,target);
 			// 	state = DDLI_CLEAR;
 			// 	//timeOut.beginNextPeriod();
-			// 	#ifdef SERIAL_DEBUG
+			// 	#ifdef KWP_DAEMON_DEBUG
 			// 		_debugSerial.printf("Ln%D\tTICK TIMEOUT from DDLI_REQUEST to DDLI_CLEAR\n",__LINE__);
 			// 	#endif
 			// }
 			break;
 		case DDLI_PARSE:
-			#ifdef SERIAL_DEBUG
+			#ifdef KWP_DAEMON_DEBUG
 				_debugSerial.printf("Ln%D\tTICK transition from DDLI_PARSE to DDLI_REQUEST\n",__LINE__);
 			#endif
 			//Callback to handover the data

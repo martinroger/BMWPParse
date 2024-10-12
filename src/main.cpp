@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include "kwpDaemon.h"
 
+#ifndef RX_FRAME_TIMEOUT
+	#define RX_FRAME_TIMEOUT 0
+#endif
 #ifndef CAN_TX
 	#define CAN_TX D2
 #endif
@@ -23,7 +26,7 @@ void parseHandler() {
 
 void setup() {
 
-	Serial.begin(115200);
+	Serial.begin(250000);
 	#ifdef LED_BUILTIN
 		pinMode(LED_BUILTIN,OUTPUT);
 		digitalWrite(LED_BUILTIN,HIGH);
@@ -36,10 +39,11 @@ void setup() {
 	canState = ESP32Can.begin();
 
 	moloch.attachDataHandler(parseHandler);
-
+	#ifdef SERIAL_DEBUG
 	while(!Serial) {
 		delay(10);
 	}
+	#endif
 	refreshInterval.beginNextPeriod();
 }
 

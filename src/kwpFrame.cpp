@@ -13,7 +13,7 @@ void kwpFrame::parseMetaData(CanFrame* rxFrame)
 	else {
 		frameType = (KWP_FRAME_TYPE)checkType;
 	}
-	#ifdef SERIAL_DEBUG
+	#ifdef KWP_FRAME_DEBUG
 		_debugSerial.printf("Ln%D\tFrame type parsed: %X\n",__LINE__,frameType);
 	#endif
 }
@@ -23,7 +23,7 @@ void kwpFrame::parseMetaData(CanFrame* rxFrame)
 /// @return 
 KWP_FRAME_TYPE kwpFrame::processCanFrame(CanFrame *rxFrame)
 {
-	#ifdef SERIAL_DEBUG
+	#ifdef KWP_FRAME_DEBUG
 		_debugSerial.printf("Ln%D\tProcessing CAN Frame to KWP Frame\n",__LINE__);
 	#endif
 	parseMetaData(rxFrame);
@@ -31,7 +31,7 @@ KWP_FRAME_TYPE kwpFrame::processCanFrame(CanFrame *rxFrame)
 	switch(frameType) {
 		case singleFrame:
 			if(!RXComplete) {
-				#ifdef SERIAL_DEBUG
+				#ifdef KWP_FRAME_DEBUG
 					_debugSerial.printf("Ln%D\tERROR: SingleFrame received while another frame is incomplete\n",__LINE__);
 				#endif  
 			}
@@ -49,7 +49,7 @@ KWP_FRAME_TYPE kwpFrame::processCanFrame(CanFrame *rxFrame)
 			break;
 		case firstFrame:
 			if(!RXComplete){
-				#ifdef SERIAL_DEBUG
+				#ifdef KWP_FRAME_DEBUG
 					_debugSerial.printf("Ln%D\tERROR: FirstFrame received while another frame is incomplete\n",__LINE__);
 				#endif  
 			} 
@@ -80,7 +80,7 @@ KWP_FRAME_TYPE kwpFrame::processCanFrame(CanFrame *rxFrame)
 				}
 			}
 			else {
-				#ifdef SERIAL_DEBUG
+				#ifdef KWP_FRAME_DEBUG
 					_debugSerial.printf("Ln%D\tERROR: ContinuationFrame without FirstFrame\n",__LINE__);
 				#endif
 			} 
@@ -89,7 +89,7 @@ KWP_FRAME_TYPE kwpFrame::processCanFrame(CanFrame *rxFrame)
 			//Nothing to do, we are in the wrong scope for that
 			break;
 		default:
-			#ifdef SERIAL_DEBUG
+			#ifdef KWP_FRAME_DEBUG
 				_debugSerial.printf("Ln%D\tERROR: Not a valid FrameType\n");
 			#endif
 			break;
@@ -102,7 +102,7 @@ KWP_FRAME_TYPE kwpFrame::processCanFrame(CanFrame *rxFrame)
 /// @param loopBack When true, the CAN frames that are sent will be detected on the RX side. False by default.
 void kwpFrame::sendKwpFrame(bool singleShot ,bool loopBack)
 {
-	#ifdef SERIAL_DEBUG
+	#ifdef KWP_FRAME_DEBUG
 		_debugSerial.printf("Ln%D\tSending KWP Frame ...\n",__LINE__);
 	#endif
 	
@@ -113,17 +113,17 @@ void kwpFrame::sendKwpFrame(bool singleShot ,bool loopBack)
 	txFrame.self = (int)loopBack;
 	for (int i = 0; i < 8; i++)
 	{
-		txFrame.data[i] = 0xFF;
+		txFrame.data[i] = 0xAA;
 	}
 	txFrame.data[0] = target;
-	#ifdef SERIAL_DEBUG
+	#ifdef KWP_FRAME_DEBUG
 		_debugSerial.printf("Ln%D\t\tSTART : pendingFCFrame: %d RXComplete: %d TXComplete: %d Length: %d PayloadLength: %d Cursor: %d \n",__LINE__,pendingFCFrame,RXComplete,TXComplete,length,payloadLength,cursor);
 	#endif
 	if(!pendingFCFrame && TXComplete) { //Not pending a FCFrame and TX is complete
 		TXComplete = false;
 		if (length<=6) //SingleFrame is doable
 		{
-			#ifdef SERIAL_DEBUG
+			#ifdef KWP_FRAME_DEBUG
 				_debugSerial.printf("Ln%D\t\tSingleFrame",__LINE__);
 			#endif
 			cursor = 0;
@@ -134,15 +134,15 @@ void kwpFrame::sendKwpFrame(bool singleShot ,bool loopBack)
 				txFrame.data[i+3] = payload[i];
 				cursor++;
 			}
-			ESP32Can.writeFrame(txFrame,5);
+			ESP32Can.writeFrame(txFrame,TX_FRAME_TIMEOUT);
 			TXComplete = true;
-			#ifdef SERIAL_DEBUG
+			#ifdef KWP_FRAME_DEBUG
 				_debugSerial.printf("\t SENT\n");
 			#endif
 		}
 		else //It is a first MF
 		{
-			#ifdef SERIAL_DEBUG
+			#ifdef KWP_FRAME_DEBUG
 				_debugSerial.printf("Ln%D\t\tMultiFrame first part",__LINE__);
 			#endif
 			cursor = 0;
@@ -155,16 +155,16 @@ void kwpFrame::sendKwpFrame(bool singleShot ,bool loopBack)
 				txFrame.data[4+i]=payload[i];
 				cursor++;
 			}
-			ESP32Can.writeFrame(txFrame,5);
+			ESP32Can.writeFrame(txFrame,TX_FRAME_TIMEOUT);
 			pendingFCFrame = true;
-			#ifdef SERIAL_DEBUG
+			#ifdef KWP_FRAME_DEBUG
 				_debugSerial.printf("\t SENT\n");
 			#endif
 		}
 	}
 	else //Pending FC Frame... assumes this is in reaction to a FC frame and the transfer is incomplete
 	{
-		#ifdef SERIAL_DEBUG
+		#ifdef KWP_FRAME_DEBUG
 			_debugSerial.printf("Ln%D\t\tContinuation frames\n",__LINE__);
 		#endif
 		while(!TXComplete) {
@@ -178,18 +178,18 @@ void kwpFrame::sendKwpFrame(bool singleShot ,bool loopBack)
 				else
 				{
 					TXComplete = true;
-					txFrame.data[2+i] = 0xFF;
+					txFrame.data[2+i] = 0xAA;
 				}
 			}
-			ESP32Can.writeFrame(txFrame,5);
-			#ifdef SERIAL_DEBUG
+			ESP32Can.writeFrame(txFrame,TX_FRAME_TIMEOUT);
+			#ifdef KWP_FRAME_DEBUG
 				_debugSerial.printf("Ln%D\t\t\tSENT with seq number 0x%02X\n",__LINE__,seqNumber);
 			#endif
 			seqNumber++;
 		}  
 		pendingFCFrame = false;
 	}
-	#ifdef SERIAL_DEBUG
+	#ifdef KWP_FRAME_DEBUG
 		_debugSerial.printf("Ln%D\t\tFINAL : pendingFCFrame: %d RXComplete: %d TXComplete: %d Length: %d PayloadLength: %d Cursor: %d \n",__LINE__,pendingFCFrame,RXComplete,TXComplete,length,payloadLength,cursor);
 	#endif
 }
@@ -216,7 +216,7 @@ void kwpFrame::printKwpFrame(Stream& targetStream)
 /// @brief Used to reset Frames when in Timeout
 void kwpFrame::resetFrame()
 {
-	#ifdef SERIAL_DEBUG
+	#ifdef KWP_FRAME_DEBUG
 		_debugSerial.printf("Ln%D\tResetting KWP Frame ...\n",__LINE__);
 	#endif
 	
