@@ -3,9 +3,6 @@
 //#include "esp_log.h"
 #include "driver/twai.h"
 
-#ifndef RX_FRAME_TIMEOUT
-	#define RX_FRAME_TIMEOUT 0
-#endif
 #ifndef CAN_TX
 	#define CAN_TX D2
 #endif
@@ -13,38 +10,22 @@
 	#define CAN_RX D1
 #endif
 
-// CanFrame rxFrame = {0};
-// bool canState;
-// Timer<millis> refreshInterval = 250;
 #define TRANSMIT_RATE_MS 10
-
 #define POLLING_RATE_MS 0
 
 static bool driver_installed = false;
-
 unsigned long previousMillis = 0;  // will store last time a message was send
 
-//kwpDaemon moloch;
-
-// void parseHandler() {
-// 	#ifdef SERIAL_DEBUG
-// 		Serial.printf("Ln%D\tParseHandler called\n",__LINE__);
-// 	#endif
-// 	//moloch.rxKwpFrame.printKwpFrame();
-// }
-
-
-
 void setup() {
-
+	//Serial Debug
 	Serial.begin(115200);
-
 	while(Serial.available()>0) {
 		Serial.read();
 	}
 	while(Serial.available()==0) {
 		delay(10);
 	}
+
 	//Twai configuration
 	twai_general_config_t g_config =  {	.mode = TWAI_MODE_NORMAL, 
 										.tx_io = (gpio_num_t) CAN_TX, 
@@ -88,28 +69,6 @@ void setup() {
 	// TWAI driver is now successfully installed and started
   	driver_installed = true;
 
-	// ESP32Can.setPins(CAN_TX,CAN_RX,LED_BUILTIN);
-	// ESP32Can.setRxQueueSize(128);
-	// ESP32Can.setTxQueueSize(128);
-	// ESP32Can.setSpeed(ESP32Can.convertSpeed(500));
-	// canState = ESP32Can.begin();
-
-
-	// moloch.attachDataHandler(parseHandler);
-	// #ifdef SERIAL_DEBUG
-	// while(Serial.available()==0) {
-	// 	delay(10);
-	// }
-	// #endif
-	
-	// uint32_t alerts_to_enable = TWAI_ALERT_ALL|TWAI_ALERT_AND_LOG;
-	// if (twai_reconfigure_alerts(alerts_to_enable, NULL) == ESP_OK) {
-	// 	Serial.printf("Alerts reconfigured\n");
-	// } else {
-	// 	Serial.printf("Failed to reconfigure alerts\n");
-	// }
-	
-	// refreshInterval.beginNextPeriod();
 }
 
 static void send_message() {
@@ -132,75 +91,42 @@ static void send_message() {
 }
 
 void loop() {
-	// uint32_t alerts_triggered;
-	// if(twai_read_alerts(&alerts_triggered,5)==ESP_OK) Serial.println(alerts_triggered);
-	// if(ESP32Can.readFrame(rxFrame,RX_FRAME_TIMEOUT)) //Check incoming rxFrame
-	// {
-	// 	#ifdef LED_BUILTIN
-	// 		//digitalWrite(LED_BUILTIN,LOW);
-	// 	#endif
-	// 	if(moloch.processIncomingCANFrame(rxFrame)) {
-
-	// 	}
-	// 	else //Not processed because not valid demonic frame
-	// 	{ 
-	// 	}
-	// 	#ifdef LED_BUILTIN
-	// 			//digitalWrite(LED_BUILTIN,HIGH);
-	// 	#endif
-	// }
-	// if(millis()-previousTS>REFINTERVAL) {
-	// 	moloch.tick(canState);
-	// 	previousTS = millis();
-	// }
-	// Serial.printf("RX:%D TX:%D\n",ESP32Can.inRxQueue(),ESP32Can.inTxQueue());
-
+	//Eject if driver is uninstalled
 	if (!driver_installed) {
-    // Driver not installed
-    delay(1000);
-    return;
-  }
-  // Check if alert happened
-  uint32_t alerts_triggered;
-  twai_read_alerts(&alerts_triggered, pdMS_TO_TICKS(POLLING_RATE_MS));
-  twai_status_info_t twaistatus;
-  twai_get_status_info(&twaistatus);
+    	// Driver not installed
+    	delay(1000);
+    	return;
+  	}
+	
+	// Check if alert happened
+	uint32_t alerts_triggered;
+	twai_read_alerts(&alerts_triggered, pdMS_TO_TICKS(POLLING_RATE_MS));
+	twai_status_info_t twaistatus;
+	twai_get_status_info(&twaistatus);
 
-  // Handle alerts
-  if (alerts_triggered & TWAI_ALERT_ERR_PASS) {
-    Serial.println("Alert: TWAI controller has become error passive.");
-  }
-  if (alerts_triggered & TWAI_ALERT_BUS_ERROR) {
-    Serial.println("Alert: A (Bit, Stuff, CRC, Form, ACK) error has occurred on the bus.");
-    Serial.printf("Bus error count: %lu\n", twaistatus.bus_error_count);
-  }
-  if (alerts_triggered & TWAI_ALERT_TX_FAILED) {
-    Serial.println("Alert: The Transmission failed.");
-    Serial.printf("TX buffered: %lu\t", twaistatus.msgs_to_tx);
-    Serial.printf("TX error: %lu\t", twaistatus.tx_error_counter);
-    Serial.printf("TX failed: %lu\n", twaistatus.tx_failed_count);
-  }
-  if (alerts_triggered & TWAI_ALERT_TX_SUCCESS) {
-    Serial.println("Alert: The Transmission was successful.");
-    Serial.printf("TX buffered: %lu\t", twaistatus.msgs_to_tx);
-  }
+	// Handle alerts
+	if (alerts_triggered & TWAI_ALERT_ERR_PASS) {
+		Serial.println("Alert: TWAI controller has become error passive.");
+	}
+	if (alerts_triggered & TWAI_ALERT_BUS_ERROR) {
+		Serial.println("Alert: A (Bit, Stuff, CRC, Form, ACK) error has occurred on the bus.");
+		Serial.printf("Bus error count: %lu\n", twaistatus.bus_error_count);
+	}
+	if (alerts_triggered & TWAI_ALERT_TX_FAILED) {
+		Serial.println("Alert: The Transmission failed.");
+		Serial.printf("TX buffered: %lu\t", twaistatus.msgs_to_tx);
+		Serial.printf("TX error: %lu\t", twaistatus.tx_error_counter);
+		Serial.printf("TX failed: %lu\n", twaistatus.tx_failed_count);
+	}
+	if (alerts_triggered & TWAI_ALERT_TX_SUCCESS) {
+		Serial.println("Alert: The Transmission was successful.");
+		Serial.printf("TX buffered: %lu\t", twaistatus.msgs_to_tx);
+	}
 
-  // Send message
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= TRANSMIT_RATE_MS) {
-    previousMillis = currentMillis;
-    send_message();
-	send_message();
-	send_message();
-	send_message();
-	send_message();
-	send_message();
-	send_message();
-	send_message();
-	send_message();
-	send_message();
-  }
+	// Send message
+	unsigned long currentMillis = millis();
+	if (currentMillis - previousMillis >= TRANSMIT_RATE_MS) {
+		previousMillis = currentMillis;
+		send_message();
+	}
 }
-
-
-
