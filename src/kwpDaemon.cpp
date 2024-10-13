@@ -270,6 +270,22 @@ void kwpDaemon::reset()
 /// @param canState Status of the CAN connection (true is up, false is down)
 void kwpDaemon::tick(bool canState)
 {
+		while (ESP32Can.readFrame(_rxFrame,RX_FRAME_TIMEOUT))
+		{
+			#ifdef LED_BUILTIN
+			digitalWrite(LED_BUILTIN,LOW);
+			#endif
+			if(processIncomingCANFrame(_rxFrame)) 
+			{
+			}
+			else //Not processed because not valid demonic frame
+			{ 
+			}
+			#ifdef LED_BUILTIN
+					digitalWrite(LED_BUILTIN,HIGH);
+			#endif
+		}
+
 		KWP_DAEMON_STATE previousState = state;
 		switch (previousState)
 		{

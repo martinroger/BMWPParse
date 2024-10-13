@@ -50,41 +50,38 @@ void setup() {
 	}
 
 	moloch.attachDataHandler(parseHandler);
-	#ifdef SERIAL_DEBUG
-	while(Serial.available()==0) {
-		delay(10);
-	}
-	#endif
+
 	
-	uint32_t alerts_to_enable = TWAI_ALERT_ALL|TWAI_ALERT_AND_LOG;
-	if (twai_reconfigure_alerts(alerts_to_enable, NULL) == ESP_OK) {
-		Serial.printf("Alerts reconfigured\n");
-	} else {
-		Serial.printf("Failed to reconfigure alerts\n");
-	}
+	// uint32_t alerts_to_enable = TWAI_ALERT_ALL|TWAI_ALERT_AND_LOG;
+	// if (twai_reconfigure_alerts(alerts_to_enable, NULL) == ESP_OK) {
+	// 	Serial.printf("Alerts reconfigured\n");
+	// } else {
+	// 	Serial.printf("Failed to reconfigure alerts\n");
+	// }
 	refreshInterval.beginNextPeriod();
 }
 
 void loop() {
-	uint32_t alerts_triggered;
-	if(twai_read_alerts(&alerts_triggered,5)==ESP_OK) Serial.println(alerts_triggered);
-	if(ESP32Can.readFrame(rxFrame,0)) //Check incoming rxFrame
-	{
-		#ifdef LED_BUILTIN
-			digitalWrite(LED_BUILTIN,LOW);
-		#endif
-		if(moloch.processIncomingCANFrame(rxFrame)) {
+	// uint32_t alerts_triggered;
+	// if(twai_read_alerts(&alerts_triggered,5)==ESP_OK) Serial.println(alerts_triggered);
+	// if(ESP32Can.readFrame(rxFrame,0)) //Check incoming rxFrame
+	// {
+	// 	#ifdef LED_BUILTIN
+	// 		digitalWrite(LED_BUILTIN,LOW);
+	// 	#endif
+	// 	if(moloch.processIncomingCANFrame(rxFrame)) {
 
-		}
-		else //Not processed because not valid demonic frame
-		{ 
-		}
-		#ifdef LED_BUILTIN
-				digitalWrite(LED_BUILTIN,HIGH);
-		#endif
-	}
+	// 	}
+	// 	else //Not processed because not valid demonic frame
+	// 	{ 
+	// 	}
+	// 	#ifdef LED_BUILTIN
+	// 			digitalWrite(LED_BUILTIN,HIGH);
+	// 	#endif
+	// }
 	if(millis()-previousTS>REFINTERVAL) {
 		moloch.tick(canState);
+		
 		previousTS = millis();
 	}
 }

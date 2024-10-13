@@ -7,6 +7,9 @@
 #ifndef TX_FRAME_TIMEOUT
 	#define TX_FRAME_TIMEOUT 5
 #endif
+#ifndef RX_FRAME_TIMEOUT
+	#define RX_FRAME_TIMEOUT 0
+#endif
 
 
 /// @brief Possible Daemon states
@@ -50,4 +53,5 @@ class kwpDaemon
 		kwpFrame _readDDLI;
 		kwpFrame _setupDDLI;
 		parsedDataHandler_t* _parsedDataHandler = nullptr;
+		CanFrame _rxFrame;
 };
