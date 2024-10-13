@@ -20,12 +20,13 @@ unsigned long previousDebug = 0;	//Will store last time the alerts were sent ove
 
 uint32_t alerts_triggered;
 unsigned long currentMillis;
+twai_message_t message;
 
 void setup() {
+	
 	//Serial Debug
 	pinMode(LED_BUILTIN,OUTPUT);
 	digitalWrite(LED_BUILTIN,!LOW);
-
 	Serial.begin(115200);
 	while(Serial.available()>0) {
 		Serial.read();
@@ -68,7 +69,14 @@ void setup() {
 	}
 
 	// Reconfigure alerts to detect TX alerts and Bus-Off errors
-	uint32_t alerts_to_enable = TWAI_ALERT_RX_DATA | TWAI_ALERT_TX_IDLE | TWAI_ALERT_TX_SUCCESS | TWAI_ALERT_TX_FAILED | TWAI_ALERT_ERR_PASS | TWAI_ALERT_BUS_ERROR | TWAI_ALERT_RX_QUEUE_FULL;
+	uint32_t alerts_to_enable = 	TWAI_ALERT_RX_DATA 
+								| 	TWAI_ALERT_TX_FAILED 
+								| 	TWAI_ALERT_ERR_PASS 
+								| 	TWAI_ALERT_BUS_ERROR 
+								| 	TWAI_ALERT_RX_QUEUE_FULL
+							//	|	TWAI_ALERT_TX_SUCCESS
+							//	|	TWAI_ALERT_ARB_LOST
+								;
 	if (twai_reconfigure_alerts(alerts_to_enable, NULL) == ESP_OK) {
 		Serial.println("CAN Alerts reconfigured");
 	} else {
@@ -88,7 +96,7 @@ static void send_message() {
   twai_message_t message;
   message.identifier = 0x0F6;
   message.data_length_code = 8;
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 8; i++) {
     message.data[i] = 0xAA;
   }
 
@@ -103,11 +111,11 @@ static void send_message() {
 static void handle_rx_message(twai_message_t &message) {
   // Process received message
   if (message.extd) {
-    Serial.println("Message is in Extended Format");
+    //Serial.println("Message is in Extended Format");
   } else {
-    Serial.println("Message is in Standard Format");
+    //Serial.println("Message is in Standard Format");
   }
-  Serial.printf("ID: %lx\nByte:", message.identifier);
+  Serial.printf("ID: %lx\tByte:", message.identifier);
   if (!(message.rtr)) {
     for (int i = 0; i < message.data_length_code; i++) {
       Serial.printf(" %d = %02x,", i, message.data[i]);
@@ -124,11 +132,9 @@ void loop() {
     	return;
   	}
 	
-	// Check if alert happened
-	currentMillis = millis();
-	if (currentMillis - previousDebug >= SERIAL_UPDATE_RATE) {
-		previousDebug = currentMillis;
-		twai_read_alerts(&alerts_triggered, pdMS_TO_TICKS(POLLING_RATE_MS));
+	// Check if alert happened, if yes react
+	if (twai_read_alerts(&alerts_triggered, pdMS_TO_TICKS(POLLING_RATE_MS))==ESP_OK)
+	{
 		twai_status_info_t twaistatus;
 		twai_get_status_info(&twaistatus);	
 		// Handle alerts
@@ -145,23 +151,25 @@ void loop() {
 			Serial.printf("TX error: %lu\t", twaistatus.tx_error_counter);
 			Serial.printf("TX failed: %lu\n", twaistatus.tx_failed_count);
 		}
-		if (alerts_triggered & TWAI_ALERT_TX_SUCCESS) {
-			Serial.println("Alert: The Transmission was successful.");
-			Serial.printf("TX buffered: %lu\t", twaistatus.msgs_to_tx);
-		}
 		if (alerts_triggered & TWAI_ALERT_RX_QUEUE_FULL) {
 			Serial.println("Alert: The RX queue is full causing a received frame to be lost.");
 			Serial.printf("RX buffered: %lu\t", twaistatus.msgs_to_rx);
 			Serial.printf("RX missed: %lu\t", twaistatus.rx_missed_count);
 			Serial.printf("RX overrun %lu\n", twaistatus.rx_overrun_count);
   		}
-		if (alerts_triggered & TWAI_ALERT_RX_DATA) {
-			// One or more messages received. Handle all.
-			twai_message_t message;
-			while (twai_receive(&message, 0) == ESP_OK) {
-			 	handle_rx_message(message);
-			}
-  		}
+		if (alerts_triggered & TWAI_ALERT_TX_SUCCESS) {
+			Serial.println("Alert: The Transmission was successful.");
+			Serial.printf("TX buffered: %lu\t", twaistatus.msgs_to_tx);
+		}
+		if (alerts_triggered & TWAI_ALERT_ARB_LOST) {
+			Serial.println("Alert: Arbitration lost.");
+			Serial.printf("ARB lost: %lu\n", twaistatus.arb_lost_count);
+		}
+	}
+
+	//Handle any message in the buffer until it is empty
+	while (twai_receive(&message, 0) == ESP_OK) {
+		handle_rx_message(message);
 	}
 	
 	// Send message
