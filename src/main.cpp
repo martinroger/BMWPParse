@@ -12,26 +12,34 @@
 
 #define TRANSMIT_RATE_MS 10
 #define POLLING_RATE_MS 0
+#define SERIAL_UPDATE_RATE 1000
+
 
 static bool driver_installed = false;
 unsigned long previousMillis = 0;  // will store last time a message was send
+unsigned long previousDebug = 0;
 
 void setup() {
 	//Serial Debug
+	pinMode(LED_BUILTIN,OUTPUT);
+	digitalWrite(LED_BUILTIN,!LOW);
+
 	Serial.begin(115200);
 	while(Serial.available()>0) {
 		Serial.read();
+		digitalWrite(LED_BUILTIN,!HIGH);
 	}
 	while(Serial.available()==0) {
 		delay(10);
+		digitalWrite(LED_BUILTIN,!HIGH);
 	}
-
+	digitalWrite(LED_BUILTIN,!LOW);
 	//Twai configuration
 	twai_general_config_t g_config =  {	.mode = TWAI_MODE_NORMAL, 
 										.tx_io = (gpio_num_t) CAN_TX, 
 										.rx_io = (gpio_num_t) CAN_RX, 
 										.clkout_io = TWAI_IO_UNUSED, 
-										.bus_off_io = (gpio_num_t) LED_BUILTIN,      
+										.bus_off_io = TWAI_IO_UNUSED,      
 										.tx_queue_len = 128, 
 										.rx_queue_len = 128,       
 										.alerts_enabled = TWAI_ALERT_NONE,  
@@ -84,9 +92,9 @@ static void send_message() {
 
   // Queue message for transmission
   if (twai_transmit(&message, pdMS_TO_TICKS(0)) == ESP_OK) {
-    printf("Message queued for transmission\n");
+    //printf("Message queued for transmission\n");
   } else {
-    printf("Failed to queue message for transmission\n");
+    //printf("Failed to queue message for transmission\n");
   }
 }
 
@@ -99,32 +107,36 @@ void loop() {
   	}
 	
 	// Check if alert happened
-	uint32_t alerts_triggered;
-	twai_read_alerts(&alerts_triggered, pdMS_TO_TICKS(POLLING_RATE_MS));
-	twai_status_info_t twaistatus;
-	twai_get_status_info(&twaistatus);
+	unsigned long currentMillis = millis();
+	if (currentMillis - previousDebug >= SERIAL_UPDATE_RATE) {
+		previousDebug = currentMillis;		
+		uint32_t alerts_triggered;
+		twai_read_alerts(&alerts_triggered, pdMS_TO_TICKS(POLLING_RATE_MS));
+		twai_status_info_t twaistatus;
+		twai_get_status_info(&twaistatus);
 
-	// Handle alerts
-	if (alerts_triggered & TWAI_ALERT_ERR_PASS) {
-		Serial.println("Alert: TWAI controller has become error passive.");
-	}
-	if (alerts_triggered & TWAI_ALERT_BUS_ERROR) {
-		Serial.println("Alert: A (Bit, Stuff, CRC, Form, ACK) error has occurred on the bus.");
-		Serial.printf("Bus error count: %lu\n", twaistatus.bus_error_count);
-	}
-	if (alerts_triggered & TWAI_ALERT_TX_FAILED) {
-		Serial.println("Alert: The Transmission failed.");
-		Serial.printf("TX buffered: %lu\t", twaistatus.msgs_to_tx);
-		Serial.printf("TX error: %lu\t", twaistatus.tx_error_counter);
-		Serial.printf("TX failed: %lu\n", twaistatus.tx_failed_count);
-	}
-	if (alerts_triggered & TWAI_ALERT_TX_SUCCESS) {
-		Serial.println("Alert: The Transmission was successful.");
-		Serial.printf("TX buffered: %lu\t", twaistatus.msgs_to_tx);
+		// Handle alerts
+		if (alerts_triggered & TWAI_ALERT_ERR_PASS) {
+			Serial.println("Alert: TWAI controller has become error passive.");
+		}
+		if (alerts_triggered & TWAI_ALERT_BUS_ERROR) {
+			Serial.println("Alert: A (Bit, Stuff, CRC, Form, ACK) error has occurred on the bus.");
+			Serial.printf("Bus error count: %lu\n", twaistatus.bus_error_count);
+		}
+		if (alerts_triggered & TWAI_ALERT_TX_FAILED) {
+			Serial.println("Alert: The Transmission failed.");
+			Serial.printf("TX buffered: %lu\t", twaistatus.msgs_to_tx);
+			Serial.printf("TX error: %lu\t", twaistatus.tx_error_counter);
+			Serial.printf("TX failed: %lu\n", twaistatus.tx_failed_count);
+		}
+		if (alerts_triggered & TWAI_ALERT_TX_SUCCESS) {
+			Serial.println("Alert: The Transmission was successful.");
+			Serial.printf("TX buffered: %lu\t", twaistatus.msgs_to_tx);
+		}
 	}
 
 	// Send message
-	unsigned long currentMillis = millis();
+	currentMillis = millis();
 	if (currentMillis - previousMillis >= TRANSMIT_RATE_MS) {
 		previousMillis = currentMillis;
 		send_message();
