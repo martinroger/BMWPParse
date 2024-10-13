@@ -10,14 +10,16 @@
 	#define CAN_RX D1
 #endif
 
-#define TRANSMIT_RATE_MS 10
+#define TRANSMIT_RATE_MS 100
 #define POLLING_RATE_MS 0
-#define SERIAL_UPDATE_RATE 1000
-
+#define SERIAL_UPDATE_RATE 1000 //Serial refresh of the status
 
 static bool driver_installed = false;
-unsigned long previousMillis = 0;  // will store last time a message was send
-unsigned long previousDebug = 0;
+unsigned long previousMillis = 0;  // will store last time a message was sent
+unsigned long previousDebug = 0;	//Will store last time the alerts were sent over Serial
+
+uint32_t alerts_triggered;
+unsigned long currentMillis;
 
 void setup() {
 	//Serial Debug
@@ -34,6 +36,7 @@ void setup() {
 		digitalWrite(LED_BUILTIN,!HIGH);
 	}
 	digitalWrite(LED_BUILTIN,!LOW);
+
 	//Twai configuration
 	twai_general_config_t g_config =  {	.mode = TWAI_MODE_NORMAL, 
 										.tx_io = (gpio_num_t) CAN_TX, 
@@ -45,7 +48,6 @@ void setup() {
 										.alerts_enabled = TWAI_ALERT_NONE,  
 										.clkout_divider = 0,        
 										.intr_flags = ESP_INTR_FLAG_LEVEL1};
-
 	twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();  
   	twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
 
@@ -66,7 +68,7 @@ void setup() {
 	}
 
 	// Reconfigure alerts to detect TX alerts and Bus-Off errors
-	uint32_t alerts_to_enable = TWAI_ALERT_TX_IDLE | TWAI_ALERT_TX_SUCCESS | TWAI_ALERT_TX_FAILED | TWAI_ALERT_ERR_PASS | TWAI_ALERT_BUS_ERROR;
+	uint32_t alerts_to_enable = TWAI_ALERT_RX_DATA | TWAI_ALERT_TX_IDLE | TWAI_ALERT_TX_SUCCESS | TWAI_ALERT_TX_FAILED | TWAI_ALERT_ERR_PASS | TWAI_ALERT_BUS_ERROR | TWAI_ALERT_RX_QUEUE_FULL;
 	if (twai_reconfigure_alerts(alerts_to_enable, NULL) == ESP_OK) {
 		Serial.println("CAN Alerts reconfigured");
 	} else {
@@ -87,7 +89,7 @@ static void send_message() {
   message.identifier = 0x0F6;
   message.data_length_code = 8;
   for (int i = 0; i < 4; i++) {
-    message.data[i] = (millis()>>(8*i)) & 0xFF;
+    message.data[i] = 0xAA;
   }
 
   // Queue message for transmission
@@ -95,6 +97,22 @@ static void send_message() {
     //printf("Message queued for transmission\n");
   } else {
     //printf("Failed to queue message for transmission\n");
+  }
+}
+
+static void handle_rx_message(twai_message_t &message) {
+  // Process received message
+  if (message.extd) {
+    Serial.println("Message is in Extended Format");
+  } else {
+    Serial.println("Message is in Standard Format");
+  }
+  Serial.printf("ID: %lx\nByte:", message.identifier);
+  if (!(message.rtr)) {
+    for (int i = 0; i < message.data_length_code; i++) {
+      Serial.printf(" %d = %02x,", i, message.data[i]);
+    }
+    Serial.println("");
   }
 }
 
@@ -107,14 +125,16 @@ void loop() {
   	}
 	
 	// Check if alert happened
-	unsigned long currentMillis = millis();
+		
+	
+
+	currentMillis = millis();
 	if (currentMillis - previousDebug >= SERIAL_UPDATE_RATE) {
-		previousDebug = currentMillis;		
-		uint32_t alerts_triggered;
+		previousDebug = currentMillis;
+		Serial.println("POLL");
 		twai_read_alerts(&alerts_triggered, pdMS_TO_TICKS(POLLING_RATE_MS));
 		twai_status_info_t twaistatus;
-		twai_get_status_info(&twaistatus);
-
+		twai_get_status_info(&twaistatus);	
 		// Handle alerts
 		if (alerts_triggered & TWAI_ALERT_ERR_PASS) {
 			Serial.println("Alert: TWAI controller has become error passive.");
@@ -133,8 +153,21 @@ void loop() {
 			Serial.println("Alert: The Transmission was successful.");
 			Serial.printf("TX buffered: %lu\t", twaistatus.msgs_to_tx);
 		}
+		if (alerts_triggered & TWAI_ALERT_RX_QUEUE_FULL) {
+			Serial.println("Alert: The RX queue is full causing a received frame to be lost.");
+			Serial.printf("RX buffered: %lu\t", twaistatus.msgs_to_rx);
+			Serial.printf("RX missed: %lu\t", twaistatus.rx_missed_count);
+			Serial.printf("RX overrun %lu\n", twaistatus.rx_overrun_count);
+  		}
+		if (alerts_triggered & TWAI_ALERT_RX_DATA) {
+			// One or more messages received. Handle all.
+			twai_message_t message;
+			while (twai_receive(&message, 0) == ESP_OK) {
+				handle_rx_message(message);
+			}
+  		}
 	}
-
+	
 	// Send message
 	currentMillis = millis();
 	if (currentMillis - previousMillis >= TRANSMIT_RATE_MS) {
