@@ -10,9 +10,8 @@
 	#define CAN_RX D1
 #endif
 
-#define TRANSMIT_RATE_MS 100
-#define POLLING_RATE_MS 0
-#define SERIAL_UPDATE_RATE 100 //Serial refresh of the status
+#define CYCLIC_TRANSMIT_RATE_MS 100
+#define WAIT_FOR_ALERTS_MS 0
 
 static bool driver_installed = false;
 unsigned long previousMillis = 0;  // will store last time a message was sent
@@ -133,7 +132,7 @@ void loop() {
   	}
 	
 	// Check if alert happened, if yes react
-	if (twai_read_alerts(&alerts_triggered, pdMS_TO_TICKS(POLLING_RATE_MS))==ESP_OK)
+	if (twai_read_alerts(&alerts_triggered, pdMS_TO_TICKS(WAIT_FOR_ALERTS_MS))==ESP_OK)
 	{
 		twai_status_info_t twaistatus;
 		twai_get_status_info(&twaistatus);	
@@ -174,7 +173,7 @@ void loop() {
 	
 	// Send message
 	currentMillis = millis();
-	if (currentMillis - previousMillis >= TRANSMIT_RATE_MS) {
+	if (currentMillis - previousMillis >= CYCLIC_TRANSMIT_RATE_MS) {
 		previousMillis = currentMillis;
 		send_message();
 	}
