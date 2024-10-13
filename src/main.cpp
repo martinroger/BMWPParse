@@ -31,7 +31,7 @@ void parseHandler() {
 
 void setup() {
 
-	Serial.begin(250000);
+	Serial.begin(115200);
 	#ifdef LED_BUILTIN
 		pinMode(LED_BUILTIN,OUTPUT);
 		digitalWrite(LED_BUILTIN,HIGH);
@@ -42,18 +42,32 @@ void setup() {
 	ESP32Can.setTxQueueSize(128);
 	ESP32Can.setSpeed(ESP32Can.convertSpeed(500));
 	canState = ESP32Can.begin();
+	while(Serial.available()>0) {
+		Serial.read();
+	}
+	while(Serial.available()==0) {
+		delay(10);
+	}
 
 	moloch.attachDataHandler(parseHandler);
 	#ifdef SERIAL_DEBUG
-	while(!Serial) {
+	while(Serial.available()==0) {
 		delay(10);
 	}
 	#endif
+	
+	uint32_t alerts_to_enable = TWAI_ALERT_ALL|TWAI_ALERT_AND_LOG;
+	if (twai_reconfigure_alerts(alerts_to_enable, NULL) == ESP_OK) {
+		Serial.printf("Alerts reconfigured\n");
+	} else {
+		Serial.printf("Failed to reconfigure alerts\n");
+	}
 	refreshInterval.beginNextPeriod();
 }
 
 void loop() {
-
+	uint32_t alerts_triggered;
+	if(twai_read_alerts(&alerts_triggered,5)==ESP_OK) Serial.println(alerts_triggered);
 	if(ESP32Can.readFrame(rxFrame,0)) //Check incoming rxFrame
 	{
 		#ifdef LED_BUILTIN
