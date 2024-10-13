@@ -12,7 +12,7 @@
 
 #define TRANSMIT_RATE_MS 100
 #define POLLING_RATE_MS 0
-#define SERIAL_UPDATE_RATE 1000 //Serial refresh of the status
+#define SERIAL_UPDATE_RATE 100 //Serial refresh of the status
 
 static bool driver_installed = false;
 unsigned long previousMillis = 0;  // will store last time a message was sent
@@ -125,13 +125,9 @@ void loop() {
   	}
 	
 	// Check if alert happened
-		
-	
-
 	currentMillis = millis();
 	if (currentMillis - previousDebug >= SERIAL_UPDATE_RATE) {
 		previousDebug = currentMillis;
-		Serial.println("POLL");
 		twai_read_alerts(&alerts_triggered, pdMS_TO_TICKS(POLLING_RATE_MS));
 		twai_status_info_t twaistatus;
 		twai_get_status_info(&twaistatus);	
@@ -163,7 +159,7 @@ void loop() {
 			// One or more messages received. Handle all.
 			twai_message_t message;
 			while (twai_receive(&message, 0) == ESP_OK) {
-				handle_rx_message(message);
+			 	handle_rx_message(message);
 			}
   		}
 	}
