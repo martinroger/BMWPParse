@@ -2,6 +2,7 @@
 #include <Arduino_Helpers.h>
 #include <AH/Timing/MillisMicrosTimer.hpp>
 #include "kwpFrame.h"
+#include "esp_log.h"
 
 #ifndef TX_FRAME_TIMEOUT
 	#define TX_FRAME_TIMEOUT 5

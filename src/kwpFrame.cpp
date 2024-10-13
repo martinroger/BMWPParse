@@ -200,7 +200,7 @@ void kwpFrame::printKwpFrame(Stream& targetStream)
 {
 	
 	if(RXComplete && (frameType != invalidFrameType && frameType != flowControlFrame)) {
-		targetStream.printf("%02X | Sender: %02X Target: %02X SID: %02X PayloadLength: %3d |  ",frameType,sender,target,SID,payloadLength); 
+		targetStream.printf("Ln%D\t%02X | Sender: %02X Target: %02X SID: %02X PayloadLength: %3d |  ",__LINE__,frameType,sender,target,SID,payloadLength); 
 		for (int i = 0; i < payloadLength; i++)
 		{
 		targetStream.printf("%02X ",payload[i]);

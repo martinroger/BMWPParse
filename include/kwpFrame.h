@@ -1,5 +1,6 @@
 #pragma once
 #include <ESP32-TWAI-CAN.hpp>
+#include "esp_log.h"
 
 #ifndef TX_FRAME_TIMEOUT
 	#define TX_FRAME_TIMEOUT 5

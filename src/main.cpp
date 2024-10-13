@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "kwpDaemon.h"
+#include "esp_log.h"
 
 #ifndef RX_FRAME_TIMEOUT
 	#define RX_FRAME_TIMEOUT 0
@@ -15,13 +16,17 @@ CanFrame rxFrame = {0};
 bool canState;
 Timer<millis> refreshInterval = 250;
 uint32_t previousTS;
-#define REFINTERVAL 1000
+#ifndef REFINTERVAL
+	#define REFINTERVAL 1000
+#endif
 
 kwpDaemon moloch;
 
 void parseHandler() {
-	Serial.printf("Ln%D\tParseHandler called\n",__LINE__);
-	moloch.rxKwpFrame.printKwpFrame();
+	#ifdef SERIAL_DEBUG
+		Serial.printf("Ln%D\tParseHandler called\n",__LINE__);
+	#endif
+	//moloch.rxKwpFrame.printKwpFrame();
 }
 
 void setup() {
