@@ -68,7 +68,7 @@ void setup() {
 void loop() {
 	uint32_t alerts_triggered;
 	if(twai_read_alerts(&alerts_triggered,5)==ESP_OK) Serial.println(alerts_triggered);
-	if(ESP32Can.readFrame(rxFrame,0)) //Check incoming rxFrame
+	if(ESP32Can.readFrame(rxFrame,RX_FRAME_TIMEOUT)) //Check incoming rxFrame
 	{
 		#ifdef LED_BUILTIN
 			digitalWrite(LED_BUILTIN,LOW);
@@ -87,6 +87,7 @@ void loop() {
 		moloch.tick(canState);
 		previousTS = millis();
 	}
+	Serial.printf("RX:%D TX:%D\n",ESP32Can.inRxQueue(),ESP32Can.inTxQueue());
 }
 
 
