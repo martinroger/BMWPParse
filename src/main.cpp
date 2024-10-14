@@ -153,7 +153,7 @@ static void send_message()
 	// {
 	// 	outFrame.data[i] = ((millis()>>i) & 0xFF);
 	// }
-	*((uint64_t*)&(outFrame.data[0])) = swap_endian<uint64_t>(snapMillis);
+	*((uint64_t*)&(outFrame.data[0])) = (swap_endian<uint64_t>(rxED)|0xAAAAAAAAAAAAAAAA);
 	// Queue message for transmission
 	if (twai_transmit(&outFrame, pdMS_TO_TICKS(0)) == ESP_OK) 
 	{
