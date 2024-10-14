@@ -13,14 +13,44 @@
 #define CYCLIC_TRANSMIT_RATE_MS 100
 #define WAIT_FOR_ALERTS_MS 0
 
+enum KWP_FRAME_TYPE : byte
+{
+	singleFrame         =   0x00,
+	firstFrame          =   0x10,
+	continuationFrame   =   0x20,
+	flowControlFrame    =   0x30,
+	invalidFrameType    =   0xFF
+};
+
+template <typename T>
+T swap_endian(T u)
+{
+	static_assert (CHAR_BIT == 8, "CHAR_BIT != 8");
+
+	union
+	{
+		T u;
+		unsigned char u8[sizeof(T)];
+	} source, dest;
+
+	source.u = u;
+
+	for (size_t k = 0; k < sizeof(T); k++)
+		dest.u8[k] = source.u8[sizeof(T) - k - 1];
+
+	return dest.u;
+}
+
 static bool driver_installed = false;
 unsigned long previousMillis = 0;  // will store last time a message was sent
 unsigned long previousDebug = 0;	//Will store last time the alerts were sent over Serial
 
 uint32_t alerts_triggered;
 unsigned long currentMillis;
-twai_message_t message;
+twai_message_t rxMessage;
 
+
+//Setup function
 void setup() {
 	
 	//Serial Debug
@@ -88,39 +118,92 @@ void setup() {
 
 }
 
+
+
+//Transmit handler
 static void send_message() {
   // Send message
 
   // Configure message to transmit
-  twai_message_t message;
-  message.identifier = 0x0F6;
-  message.data_length_code = 8;
+  twai_message_t outFrame;
+  outFrame.identifier = 0x6F1;
+  outFrame.data_length_code = 8;
   for (int i = 0; i < 8; i++) {
-    message.data[i] = 0xAA;
+    outFrame.data[i] = 0xAA;
   }
 
   // Queue message for transmission
-  if (twai_transmit(&message, pdMS_TO_TICKS(0)) == ESP_OK) {
+  if (twai_transmit(&outFrame, pdMS_TO_TICKS(0)) == ESP_OK) {
     //printf("Message queued for transmission\n");
   } else {
     //printf("Failed to queue message for transmission\n");
   }
 }
 
-static void handle_rx_message(twai_message_t &message) {
-  // Process received message
-  if (message.extd) {
-    //Serial.println("Message is in Extended Format");
-  } else {
-    //Serial.println("Message is in Standard Format");
-  }
-  Serial.printf("ID: %lx\tByte:", message.identifier);
-  if (!(message.rtr)) {
-    for (int i = 0; i < message.data_length_code; i++) {
-      Serial.printf(" %d = %02x,", i, message.data[i]);
-    }
-    Serial.println("");
-  }
+
+//Incoming handler
+static void handle_rx_message(twai_message_t inFrame) {
+  	// Process received message
+	static uint16_t length;
+	static uint16_t payLoadLength;
+	static byte payLoadBuffer[255];
+	static byte SID;
+	static byte cursor;
+	static byte MultiFrame;
+	
+	
+	if((inFrame.identifier == 0x612) && (inFrame.data[0] == 0xF1)) {
+		//Serial.print(__func__);
+		byte typeNibble = inFrame.data[1] & 0xF0;
+		KWP_FRAME_TYPE frameType = invalidFrameType;
+		if (!(typeNibble>0x30))
+		{
+			frameType = (KWP_FRAME_TYPE)typeNibble;		
+		}
+
+		switch (frameType)
+		{
+		case singleFrame:
+			MultiFrame 		= 	false;
+			length 			= 	inFrame.data[1];
+			payLoadLength 	= 	length - 1;
+			SID 			= 	inFrame.data[2];
+			cursor 			= 	0;
+			for (int i = 3; i < 3+payLoadLength; i++)
+			{
+				payLoadBuffer[cursor] = inFrame.data[i];
+				cursor++;
+			}
+			Serial.printf("%s\tSingleFrame\tSID:%02X\tPayloadLen:%d\tPayload:",__func__,SID,payLoadLength);
+			for (int i = 0; i < payLoadLength; i++)
+			{
+				Serial.printf(" %02X",payLoadBuffer[i]);
+			}
+			Serial.println();
+			break;
+
+		case firstFrame:
+			MultiFrame 		= 	true;
+			length 			= 	(swap_endian<uint16_t>(*((uint16_t*)&(inFrame.data[1]))) & 0x0FFF);
+			payLoadLength 	= 	length - 1;
+			SID 			= 	inFrame.data[3];
+			cursor 			= 	0;
+			for (int i = 4; i < 8; i++)
+			{
+				payLoadBuffer[cursor] = inFrame.data[i];
+				cursor++;
+			}
+			Serial.printf("%s\tFirstFrame\tSID:%02X\tPayloadLen:%d",__func__,SID,payLoadLength);
+			Serial.println();
+			break;
+
+		default:
+			break;
+		}
+	}
+	else {
+		return;
+	}
 }
 
 void loop() {
@@ -167,8 +250,8 @@ void loop() {
 	}
 
 	//Handle any message in the buffer until it is empty
-	while (twai_receive(&message, 0) == ESP_OK) {
-		handle_rx_message(message);
+	while (twai_receive(&rxMessage, 0) == ESP_OK) {
+		handle_rx_message(rxMessage);
 	}
 	
 	// Send message
