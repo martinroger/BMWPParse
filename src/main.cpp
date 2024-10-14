@@ -51,7 +51,8 @@ twai_message_t rxMessage;
 
 
 //Setup function
-void setup() {
+void setup() 
+{
 	
 	//Serial Debug
 	pinMode(LED_BUILTIN,OUTPUT);
@@ -121,28 +122,34 @@ void setup() {
 
 
 //Transmit handler
-static void send_message() {
+static void send_message() 
+{
   // Send message
 
   // Configure message to transmit
   twai_message_t outFrame;
   outFrame.identifier = 0x6F1;
   outFrame.data_length_code = 8;
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 8; i++) 
+  {
     outFrame.data[i] = 0xAA;
   }
 
   // Queue message for transmission
-  if (twai_transmit(&outFrame, pdMS_TO_TICKS(0)) == ESP_OK) {
+  if (twai_transmit(&outFrame, pdMS_TO_TICKS(0)) == ESP_OK) 
+  {
     //printf("Message queued for transmission\n");
-  } else {
+  } 
+  else 
+  {
     //printf("Failed to queue message for transmission\n");
   }
 }
 
 
 //Incoming handler
-static void handle_rx_message(twai_message_t inFrame) {
+static void handle_rx_message(twai_message_t inFrame) 
+{
   	// Process received message
 	static uint16_t length;
 	static uint16_t payLoadLength;
@@ -152,7 +159,8 @@ static void handle_rx_message(twai_message_t inFrame) {
 	static byte MultiFrame;
 	
 	
-	if((inFrame.identifier == 0x612) && (inFrame.data[0] == 0xF1)) {
+	if((inFrame.identifier == 0x612) && (inFrame.data[0] == 0xF1)) 
+	{
 		//Serial.print(__func__);
 		byte typeNibble = inFrame.data[1] & 0xF0;
 		KWP_FRAME_TYPE frameType = invalidFrameType;
@@ -163,6 +171,7 @@ static void handle_rx_message(twai_message_t inFrame) {
 
 		switch (frameType)
 		{
+		//Single Frames. Overrides any other type that might be unfinished
 		case singleFrame:
 			MultiFrame 		= 	false;
 			length 			= 	inFrame.data[1];
@@ -174,6 +183,7 @@ static void handle_rx_message(twai_message_t inFrame) {
 				payLoadBuffer[cursor] = inFrame.data[i];
 				cursor++;
 			}
+			//Payload debug output
 			Serial.printf("%s\tSingleFrame\tSID:%02X\tPayloadLen:%d\tPayload:",__func__,SID,payLoadLength);
 			for (int i = 0; i < payLoadLength; i++)
 			{
@@ -181,7 +191,7 @@ static void handle_rx_message(twai_message_t inFrame) {
 			}
 			Serial.println();
 			break;
-
+		//First frame. Sets up a MultiFrame counter, assumes data is a bit static between the loops
 		case firstFrame:
 			MultiFrame 		= 	true;
 			length 			= 	(swap_endian<uint16_t>(*((uint16_t*)&(inFrame.data[1]))) & 0x0FFF);
@@ -193,8 +203,49 @@ static void handle_rx_message(twai_message_t inFrame) {
 				payLoadBuffer[cursor] = inFrame.data[i];
 				cursor++;
 			}
+			//Debug output
 			Serial.printf("%s\tFirstFrame\tSID:%02X\tPayloadLen:%d",__func__,SID,payLoadLength);
 			Serial.println();
+			break;
+		//ContinuationFrame. Will throw an error if MultiFrame is not set up accordingly
+		case continuationFrame:
+			if(MultiFrame)
+			{
+				for (int i = 2; i < 8; i++)
+				{
+					if(cursor<payLoadLength)
+					{
+						payLoadBuffer[cursor] = inFrame.data[i];
+						cursor++;
+					}
+					else
+					{
+						MultiFrame = false;
+						break;
+					}
+				}
+				if(!MultiFrame) //If there has been a finished continuation frame
+				{
+					//Payload debug output
+					Serial.printf("%s\tMultiFrame\tSID:%02X\tPayloadLen:%d\tPayload:",__func__,SID,payLoadLength);
+					for (int i = 0; i < payLoadLength; i++)
+					{
+						Serial.printf(" %02X",payLoadBuffer[i]);
+					}
+					Serial.println();
+				}
+				else
+				{
+					Serial.printf("%s\tContinuationFrame\tSID:%02X\tPayloadLen:%d\tSequence:%d\n",__func__,SID,payLoadLength,(inFrame.data[1] & 0x0F));
+				}
+				
+			}
+			else //Unannounced ContinuationFrame
+			{
+				Serial.printf("%s\tInvalid ContinuationFrame\n",__func__);
+			}
+
+
 			break;
 
 		default:
