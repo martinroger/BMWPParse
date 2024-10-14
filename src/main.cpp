@@ -48,6 +48,8 @@ unsigned long previousDebug = 0;	//Will store last time the alerts were sent ove
 uint32_t alerts_triggered;
 unsigned long currentMillis;
 twai_message_t rxMessage;
+unsigned long txED;
+unsigned long rxED;
 
 
 //Setup function
@@ -122,14 +124,16 @@ void setup()
 //Twai status watchdog
 void twaiStatusWatchdog()
 {
-	twai_status_info_t twaistatus;
+	static twai_status_info_t twaistatus;
 	twai_get_status_info(&twaistatus);
 	Serial.printf("%s\t",__func__);
 	Serial.printf("Bus errors:%lu\t",twaistatus.bus_error_count);
 	Serial.printf("TX queue:%lu\t",twaistatus.msgs_to_tx);
 	Serial.printf("TX error: %lu\t", twaistatus.tx_error_counter);
 	Serial.printf("TX failed: %lu\t", twaistatus.tx_failed_count);
-	Serial.printf("ARB lost: %lu\n", twaistatus.arb_lost_count);
+	Serial.printf("ARB lost: %lu\t", twaistatus.arb_lost_count);
+	Serial.printf("TXed:%lu\t",txED);
+	Serial.printf("RXed:%lu\n",rxED);
 }
 
 
@@ -143,17 +147,18 @@ static void send_message()
 	// Configure message to transmit
 	twai_message_t outFrame;
 	outFrame.identifier = 0x6F1;
+	outFrame.ss = 0;
 	outFrame.data_length_code = 8;
 	// for (int i = 0; i < 8; i++) 
 	// {
 	// 	outFrame.data[i] = ((millis()>>i) & 0xFF);
 	// }
 	*((uint64_t*)&(outFrame.data[0])) = swap_endian<uint64_t>(snapMillis);
-
 	// Queue message for transmission
 	if (twai_transmit(&outFrame, pdMS_TO_TICKS(0)) == ESP_OK) 
 	{
 		//printf("Message queued for transmission\n");
+		txED++;
 	} 
 	else 
 	{
@@ -326,6 +331,7 @@ void loop() {
 
 	//Handle any message in the buffer until it is empty
 	while (twai_receive(&rxMessage, 0) == ESP_OK) {
+		rxED++;
 		handle_rx_message(rxMessage);
 	}
 	
