@@ -10,7 +10,7 @@
 	#define CAN_RX D1
 #endif
 
-#define CYCLIC_TRANSMIT_RATE_MS 100
+#define CYCLIC_TRANSMIT_RATE_MS 3000
 #define WAIT_FOR_ALERTS_MS 0
 
 enum KWP_FRAME_TYPE : byte
@@ -105,7 +105,7 @@ void setup()
 								| 	TWAI_ALERT_BUS_ERROR 
 								| 	TWAI_ALERT_RX_QUEUE_FULL
 							//	|	TWAI_ALERT_TX_SUCCESS
-							//	|	TWAI_ALERT_ARB_LOST
+								|	TWAI_ALERT_ARB_LOST
 								;
 	if (twai_reconfigure_alerts(alerts_to_enable, NULL) == ESP_OK) {
 		Serial.println("CAN Alerts reconfigured");
@@ -119,31 +119,46 @@ void setup()
 
 }
 
+//Twai status watchdog
+void twaiStatusWatchdog()
+{
+	twai_status_info_t twaistatus;
+	twai_get_status_info(&twaistatus);
+	Serial.printf("%s\t",__func__);
+	Serial.printf("Bus errors:%lu\t",twaistatus.bus_error_count);
+	Serial.printf("TX queue:%lu\t",twaistatus.msgs_to_tx);
+	Serial.printf("TX error: %lu\t", twaistatus.tx_error_counter);
+	Serial.printf("TX failed: %lu\t", twaistatus.tx_failed_count);
+	Serial.printf("ARB lost: %lu\n", twaistatus.arb_lost_count);
+}
+
 
 
 //Transmit handler
 static void send_message() 
 {
-  // Send message
+	// Send message
+	unsigned long snapMillis = millis();
 
-  // Configure message to transmit
-  twai_message_t outFrame;
-  outFrame.identifier = 0x6F1;
-  outFrame.data_length_code = 8;
-  for (int i = 0; i < 8; i++) 
-  {
-    outFrame.data[i] = 0xAA;
-  }
+	// Configure message to transmit
+	twai_message_t outFrame;
+	outFrame.identifier = 0x6F1;
+	outFrame.data_length_code = 8;
+	// for (int i = 0; i < 8; i++) 
+	// {
+	// 	outFrame.data[i] = ((millis()>>i) & 0xFF);
+	// }
+	*((uint64_t*)&(outFrame.data[0])) = swap_endian<uint64_t>(snapMillis);
 
-  // Queue message for transmission
-  if (twai_transmit(&outFrame, pdMS_TO_TICKS(0)) == ESP_OK) 
-  {
-    //printf("Message queued for transmission\n");
-  } 
-  else 
-  {
-    //printf("Failed to queue message for transmission\n");
-  }
+	// Queue message for transmission
+	if (twai_transmit(&outFrame, pdMS_TO_TICKS(0)) == ESP_OK) 
+	{
+		//printf("Message queued for transmission\n");
+	} 
+	else 
+	{
+		//printf("Failed to queue message for transmission\n");
+	}
 }
 
 
@@ -244,14 +259,23 @@ static void handle_rx_message(twai_message_t inFrame)
 			{
 				Serial.printf("%s\tInvalid ContinuationFrame\n",__func__);
 			}
-
-
+			break;
+		//FlowControlFrame	
+		case flowControlFrame:
+			Serial.printf("%s\tFlowControlFrame\n",__func__);
+			send_message();
 			break;
 
 		default:
 			break;
 		}
 	}
+	//For another selected frame template
+	// else if (/* condition */)
+	// {
+	// 	/* code */
+	// }
+	//Any other frame
 	else {
 		return;
 	}
@@ -309,6 +333,7 @@ void loop() {
 	currentMillis = millis();
 	if (currentMillis - previousMillis >= CYCLIC_TRANSMIT_RATE_MS) {
 		previousMillis = currentMillis;
-		send_message();
+		//send_message();
+		twaiStatusWatchdog();
 	}
 }
