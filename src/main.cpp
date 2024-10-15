@@ -10,7 +10,7 @@
 	#define CAN_RX D1
 #endif
 
-#define CYCLIC_TRANSMIT_RATE_MS 50
+#define CYCLIC_TRANSMIT_RATE_MS 1 //50 necessary, works down to 10
 #define WAIT_FOR_ALERTS_MS 0
 #define TX_TIME_OUT 0
 #define MAX_REQS 20000
@@ -411,12 +411,12 @@ static void handle_rx_message(twai_message_t inFrame)
 			}
 			
 			//Payload debug output
-			Serial.printf("%s\tSingleFrame\tSID:%02X\tPayloadLen:%d\tPayload:",__func__,SID,payLoadLength);
-			for (int i = 0; i < payLoadLength; i++)
-			{
-				Serial.printf(" %02X",payLoadBuffer[i]);
-			}
-			Serial.println();
+			// Serial.printf("%s\tSingleFrame\tSID:%02X\tPayloadLen:%d\tPayload:",__func__,SID,payLoadLength);
+			// for (int i = 0; i < payLoadLength; i++)
+			// {
+			// 	Serial.printf(" %02X",payLoadBuffer[i]);
+			// }
+			// Serial.println();
 			break;
 		//First frame. Sets up a MultiFrame counter, assumes data is a bit static between the loops
 		case firstFrame:
@@ -438,8 +438,8 @@ static void handle_rx_message(twai_message_t inFrame)
 			}
 
 			//Debug output
-			Serial.printf("%s\tFirstFrame\tSID:%02X\tPayloadLen:%d",__func__,SID,payLoadLength);
-			Serial.println();
+			// Serial.printf("%s\tFirstFrame\tSID:%02X\tPayloadLen:%d",__func__,SID,payLoadLength);
+			// Serial.println();
 			break;
 		//ContinuationFrame. Will throw an error if MultiFrame is not set up accordingly
 		case continuationFrame:
@@ -463,16 +463,16 @@ static void handle_rx_message(twai_message_t inFrame)
 					//ProcessSID
 					waitForResp = false;
 					//Payload debug output
-					Serial.printf("%s\tMultiFrame\tSID:%02X\tPayloadLen:%d\tPayload:",__func__,SID,payLoadLength);
-					for (int i = 0; i < payLoadLength; i++)
-					{
-						Serial.printf(" %02X",payLoadBuffer[i]);
-					}
-					Serial.println();
+					// Serial.printf("%s\tMultiFrame\tSID:%02X\tPayloadLen:%d\tPayload:",__func__,SID,payLoadLength);
+					// for (int i = 0; i < payLoadLength; i++)
+					// {
+					// 	Serial.printf(" %02X",payLoadBuffer[i]);
+					// }
+					// Serial.println();
 				}
 				else
 				{
-					Serial.printf("%s\tContinuationFrame\tSID:%02X\tPayloadLen:%d\tSequence:%d\n",__func__,SID,payLoadLength,(inFrame.data[1] & 0x0F));
+					// Serial.printf("%s\tContinuationFrame\tSID:%02X\tPayloadLen:%d\tSequence:%d\n",__func__,SID,payLoadLength,(inFrame.data[1] & 0x0F));
 				}
 				
 			}
@@ -483,7 +483,7 @@ static void handle_rx_message(twai_message_t inFrame)
 			break;
 		//FlowControlFrame	
 		case flowControlFrame:
-			Serial.printf("%s\tFlowControlFrame\n",__func__);
+			// Serial.printf("%s\tFlowControlFrame\n",__func__);
 			//send_generic_message();
 			for (int i = 1; i < 10; i++)
 			{
@@ -581,7 +581,14 @@ void loop() {
 			}
 		}
 		
-		twaiStatusWatchdog();
+		//twaiStatusWatchdog();
 		
+	}
+
+	if(requests>=MAX_REQS)
+	{
+		twaiStatusWatchdog();
+		Serial.println("Done.");
+		return;
 	}
 }
