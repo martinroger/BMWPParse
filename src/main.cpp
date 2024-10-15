@@ -10,8 +10,11 @@
 	#define CAN_RX D1
 #endif
 
-#define CYCLIC_TRANSMIT_RATE_MS 3000
+#define CYCLIC_TRANSMIT_RATE_MS 200
 #define WAIT_FOR_ALERTS_MS 0
+#define TX_TIME_OUT 100
+#define MAX_REQS 3000
+unsigned long requests = 0;
 
 enum KWP_FRAME_TYPE : byte
 {
@@ -50,6 +53,10 @@ unsigned long currentMillis;
 twai_message_t rxMessage;
 unsigned long txED;
 unsigned long rxED;
+
+bool DDLICleared = false;
+bool DDLISet = false;
+bool waitForResp = false;
 
 
 //Setup function
@@ -133,13 +140,14 @@ void twaiStatusWatchdog()
 	Serial.printf("TX failed: %lu\t", twaistatus.tx_failed_count);
 	Serial.printf("ARB lost: %lu\t", twaistatus.arb_lost_count);
 	Serial.printf("TXed:%lu\t",txED);
-	Serial.printf("RXed:%lu\n",rxED);
+	Serial.printf("RXed:%lu\t",rxED);
+	Serial.printf("REQs:%lu\n",requests);
 }
 
 
 
 //Transmit handler
-static void send_message() 
+static void send_generic_message() 
 {
 	// Send message
 	unsigned long snapMillis = millis();
@@ -155,7 +163,7 @@ static void send_message()
 	// }
 	*((uint64_t*)&(outFrame.data[0])) = (swap_endian<uint64_t>(rxED)|0xAAAAAAAAAAAAAAAA);
 	// Queue message for transmission
-	if (twai_transmit(&outFrame, pdMS_TO_TICKS(0)) == ESP_OK) 
+	if (twai_transmit(&outFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
 	{
 		//printf("Message queued for transmission\n");
 		txED++;
@@ -166,6 +174,178 @@ static void send_message()
 	}
 }
 
+static void send_pos_response(byte reqSID)
+{
+	twai_message_t posRespFrame;
+	posRespFrame.identifier = 0x6F1;
+	posRespFrame.data_length_code = 8;
+	posRespFrame.ss = 0;
+	posRespFrame.data[0] = 0x12;
+	posRespFrame.data[1] = 0x01;
+	posRespFrame.data[2] = reqSID + 0x40;
+	if (twai_transmit(&posRespFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
+	{
+		//printf("Message queued for transmission\n");
+		txED++;
+	} 
+	else 
+	{
+		//printf("Failed to queue message for transmission\n");
+	}
+}
+
+static void send_clear_request()
+{
+	twai_message_t clearReqFrame;
+	clearReqFrame.identifier = 0x6F1;
+	clearReqFrame.data_length_code = 8;
+	clearReqFrame.ss = 0;
+	clearReqFrame.data[0] = 0x12;
+	clearReqFrame.data[1] = 0x03;
+	clearReqFrame.data[2] = 0x2C;
+	clearReqFrame.data[3] = 0xF0;
+	clearReqFrame.data[4] = 0x04;
+	if (twai_transmit(&clearReqFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
+	{
+		//printf("Message queued for transmission\n");
+		txED++;
+		waitForResp=true;
+	} 
+	else 
+	{
+		//printf("Failed to queue message for transmission\n");
+	}
+}
+
+static void send_flow_control(byte targetID)
+{
+	twai_message_t flowControlFrame;
+	flowControlFrame.identifier = 0x6F1;
+	flowControlFrame.data_length_code = 8;
+	flowControlFrame.ss = 0;
+	flowControlFrame.data[0] = targetID;
+	flowControlFrame.data[1] = 0x30;
+	flowControlFrame.data[2] = 0x00;
+	flowControlFrame.data[3] = 0x00;
+	flowControlFrame.data[4] = 0x00;
+	if (twai_transmit(&flowControlFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
+	{
+		//printf("Message queued for transmission\n");
+		txED++;
+		waitForResp = true;
+	} 
+	else 
+	{
+		//printf("Failed to queue message for transmission\n");
+	}
+}
+
+static void send_DDLISet_FF()
+{
+	byte tempPayload[] = {
+		0xF0,
+		0x02, 0x01, 0x01, 0x58, 0x0C, 0x01, 
+		0x02, 0x02, 0x02, 0x58, 0xF0, 0x01,
+		0x02, 0x04, 0x02, 0x5A, 0xBC, 0x01,
+		0x02, 0x06, 0x02, 0x58, 0xDD, 0x01,
+		0x02, 0x08, 0x01, 0x58, 0x0D, 0x01,
+		0x02, 0x09, 0x01, 0x44, 0x02, 0x01, 
+		0x02, 0x0A, 0x01, 0x58, 0x1F, 0x01,
+		0x02, 0x0B, 0x01, 0x58, 0x05, 0x01,
+		0x02, 0x0C, 0x01, 0x58, 0x0F, 0x01 
+	};
+	twai_message_t DDLISet_firstFrame;
+	DDLISet_firstFrame.identifier = 0x6F1;
+	DDLISet_firstFrame.data_length_code = 8;
+	DDLISet_firstFrame.ss = 0;
+	DDLISet_firstFrame.data[0] = 0x12;
+	DDLISet_firstFrame.data[1] = 0x10;
+	DDLISet_firstFrame.data[2] = 56;
+	DDLISet_firstFrame.data[3] = 0x2C;
+	for (int i = 0; i < 4; i++)
+	{
+		DDLISet_firstFrame.data[i+4] = tempPayload[i];
+	}
+
+	if (twai_transmit(&DDLISet_firstFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
+	{
+		//printf("Message queued for transmission\n");
+		txED++;
+		waitForResp = true;
+	} 
+	else 
+	{
+		//printf("Failed to queue message for transmission\n");
+	}
+
+}
+
+static void send_DDLISet_CF(int seqNumber)
+{
+byte tempPayload[] = {
+		0xF0,
+		0x02, 0x01, 0x01, 0x58, 0x0C, 0x01, 
+		0x02, 0x02, 0x02, 0x58, 0xF0, 0x01,
+		0x02, 0x04, 0x02, 0x5A, 0xBC, 0x01,
+		0x02, 0x06, 0x02, 0x58, 0xDD, 0x01,
+		0x02, 0x08, 0x01, 0x58, 0x0D, 0x01,
+		0x02, 0x09, 0x01, 0x44, 0x02, 0x01, 
+		0x02, 0x0A, 0x01, 0x58, 0x1F, 0x01,
+		0x02, 0x0B, 0x01, 0x58, 0x05, 0x01,
+		0x02, 0x0C, 0x01, 0x58, 0x0F, 0x01 
+	};
+	twai_message_t DDLISet_contFrame;
+	DDLISet_contFrame.identifier = 0x6F1;
+	DDLISet_contFrame.data_length_code = 8;
+	DDLISet_contFrame.ss = 0;
+	DDLISet_contFrame.data[0] = 0x12;
+	DDLISet_contFrame.data[1] = 0x20 + seqNumber;
+	for (int i = 0; i < 6; i++)
+	{
+		if(4+i+(seqNumber-1)*6<56)
+		{
+			DDLISet_contFrame.data[2+i] = tempPayload[4+i+(seqNumber-1)*6]; //ugly
+		}
+		else
+		{
+			DDLISet_contFrame.data[2+i] = 0xAA;
+		}
+	}
+
+	if (twai_transmit(&DDLISet_contFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
+	{
+		//printf("Message queued for transmission\n");
+		txED++;
+		waitForResp = true;
+	} 
+	else 
+	{
+		//printf("Failed to queue message for transmission\n");
+	}
+}
+
+static void send_read_request()
+{
+	twai_message_t readReqFrame;
+	readReqFrame.identifier = 0x6F1;
+	readReqFrame.data_length_code = 8;
+	readReqFrame.ss = 0;
+	readReqFrame.data[0] = 0x12;
+	readReqFrame.data[1] = 0x02;
+	readReqFrame.data[2] = 0x21;
+	readReqFrame.data[3] = 0xF0;
+
+	if (twai_transmit(&readReqFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
+	{
+		//printf("Message queued for transmission\n");
+		txED++;
+		waitForResp = true;
+	} 
+	else 
+	{
+		//printf("Failed to queue message for transmission\n");
+	}
+}
 
 //Incoming handler
 static void handle_rx_message(twai_message_t inFrame) 
@@ -203,6 +383,19 @@ static void handle_rx_message(twai_message_t inFrame)
 				payLoadBuffer[cursor] = inFrame.data[i];
 				cursor++;
 			}
+
+			//ProcessSID
+			if(!DDLICleared && (SID==0x6C))
+			{
+				DDLICleared = true;
+				waitForResp = false;
+			}
+			else if(DDLICleared && (SID==0x6C))
+			{
+				DDLISet = true;
+				waitForResp = false;
+			}
+			
 			//Payload debug output
 			Serial.printf("%s\tSingleFrame\tSID:%02X\tPayloadLen:%d\tPayload:",__func__,SID,payLoadLength);
 			for (int i = 0; i < payLoadLength; i++)
@@ -223,6 +416,13 @@ static void handle_rx_message(twai_message_t inFrame)
 				payLoadBuffer[cursor] = inFrame.data[i];
 				cursor++;
 			}
+
+			//ProcessSID
+			if(DDLISet && (SID==0x61))
+			{
+				send_flow_control(0x12);
+			}
+
 			//Debug output
 			Serial.printf("%s\tFirstFrame\tSID:%02X\tPayloadLen:%d",__func__,SID,payLoadLength);
 			Serial.println();
@@ -246,6 +446,8 @@ static void handle_rx_message(twai_message_t inFrame)
 				}
 				if(!MultiFrame) //If there has been a finished continuation frame
 				{
+					//ProcessSID
+					waitForResp = false;
 					//Payload debug output
 					Serial.printf("%s\tMultiFrame\tSID:%02X\tPayloadLen:%d\tPayload:",__func__,SID,payLoadLength);
 					for (int i = 0; i < payLoadLength; i++)
@@ -268,7 +470,14 @@ static void handle_rx_message(twai_message_t inFrame)
 		//FlowControlFrame	
 		case flowControlFrame:
 			Serial.printf("%s\tFlowControlFrame\n",__func__);
-			send_message();
+			//send_generic_message();
+			for (int i = 1; i < 10; i++)
+			{
+				send_DDLISet_CF(i);
+			}
+			
+			
+
 			break;
 
 		default:
@@ -330,16 +539,35 @@ void loop() {
 	}
 
 	//Handle any message in the buffer until it is empty
-	while (twai_receive(&rxMessage, 0) == ESP_OK) {
+	while (twai_receive(&rxMessage, 10) == ESP_OK) {
 		rxED++;
 		handle_rx_message(rxMessage);
 	}
+	
 	
 	// Send message
 	currentMillis = millis();
 	if (currentMillis - previousMillis >= CYCLIC_TRANSMIT_RATE_MS) {
 		previousMillis = currentMillis;
-		//send_message();
-		twaiStatusWatchdog();
+		//send_generic_message();
+		if(!waitForResp)
+		{
+			if(!DDLICleared)
+			{
+				send_clear_request();
+			}
+			if (DDLICleared && !DDLISet)
+			{
+				send_DDLISet_FF();
+			}
+			if(DDLICleared && DDLISet && (requests<MAX_REQS))
+			{
+				send_read_request();
+				requests++;
+			}
+		}
+		
+		if(Serial.read()>0) twaiStatusWatchdog();
+		
 	}
 }
