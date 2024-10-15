@@ -10,7 +10,7 @@
 	#define CAN_RX D1
 #endif
 
-#define CYCLIC_TRANSMIT_RATE_MS 1 //50 necessary, works down to 10
+#define CYCLIC_TRANSMIT_RATE_MS 100 //50 necessary, works down to 10
 #define WAIT_FOR_ALERTS_MS 0
 #define TX_TIME_OUT 0
 #define MAX_REQS 20000
