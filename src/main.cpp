@@ -10,10 +10,10 @@
 	#define CAN_RX D1
 #endif
 
-#define CYCLIC_TRANSMIT_RATE_MS 200
+#define CYCLIC_TRANSMIT_RATE_MS 50
 #define WAIT_FOR_ALERTS_MS 0
-#define TX_TIME_OUT 100
-#define MAX_REQS 3000
+#define TX_TIME_OUT 0
+#define MAX_REQS 20000
 unsigned long requests = 0;
 
 enum KWP_FRAME_TYPE : byte
@@ -83,8 +83,8 @@ void setup()
 										.rx_io = (gpio_num_t) CAN_RX, 
 										.clkout_io = TWAI_IO_UNUSED, 
 										.bus_off_io = TWAI_IO_UNUSED,      
-										.tx_queue_len = 128, 
-										.rx_queue_len = 128,       
+										.tx_queue_len = 16, 
+										.rx_queue_len = 16,       
 										.alerts_enabled = TWAI_ALERT_NONE,  
 										.clkout_divider = 0,        
 										.intr_flags = ESP_INTR_FLAG_LEVEL1};
@@ -157,6 +157,8 @@ static void send_generic_message()
 	outFrame.identifier = 0x6F1;
 	outFrame.ss = 0;
 	outFrame.data_length_code = 8;
+	outFrame.extd = 0;
+	outFrame.rtr = 0;
 	// for (int i = 0; i < 8; i++) 
 	// {
 	// 	outFrame.data[i] = ((millis()>>i) & 0xFF);
@@ -180,6 +182,8 @@ static void send_pos_response(byte reqSID)
 	posRespFrame.identifier = 0x6F1;
 	posRespFrame.data_length_code = 8;
 	posRespFrame.ss = 0;
+	posRespFrame.extd = 0;
+	posRespFrame.rtr = 0;
 	posRespFrame.data[0] = 0x12;
 	posRespFrame.data[1] = 0x01;
 	posRespFrame.data[2] = reqSID + 0x40;
@@ -200,6 +204,8 @@ static void send_clear_request()
 	clearReqFrame.identifier = 0x6F1;
 	clearReqFrame.data_length_code = 8;
 	clearReqFrame.ss = 0;
+	clearReqFrame.extd = 0;
+	clearReqFrame.rtr = 0;
 	clearReqFrame.data[0] = 0x12;
 	clearReqFrame.data[1] = 0x03;
 	clearReqFrame.data[2] = 0x2C;
@@ -223,6 +229,8 @@ static void send_flow_control(byte targetID)
 	flowControlFrame.identifier = 0x6F1;
 	flowControlFrame.data_length_code = 8;
 	flowControlFrame.ss = 0;
+	flowControlFrame.extd = 0;
+	flowControlFrame.rtr = 0;
 	flowControlFrame.data[0] = targetID;
 	flowControlFrame.data[1] = 0x30;
 	flowControlFrame.data[2] = 0x00;
@@ -258,6 +266,8 @@ static void send_DDLISet_FF()
 	DDLISet_firstFrame.identifier = 0x6F1;
 	DDLISet_firstFrame.data_length_code = 8;
 	DDLISet_firstFrame.ss = 0;
+	DDLISet_firstFrame.extd = 0;
+	DDLISet_firstFrame.rtr = 0;
 	DDLISet_firstFrame.data[0] = 0x12;
 	DDLISet_firstFrame.data[1] = 0x10;
 	DDLISet_firstFrame.data[2] = 56;
@@ -298,6 +308,8 @@ byte tempPayload[] = {
 	DDLISet_contFrame.identifier = 0x6F1;
 	DDLISet_contFrame.data_length_code = 8;
 	DDLISet_contFrame.ss = 0;
+	DDLISet_contFrame.extd = 0;
+	DDLISet_contFrame.rtr = 0;
 	DDLISet_contFrame.data[0] = 0x12;
 	DDLISet_contFrame.data[1] = 0x20 + seqNumber;
 	for (int i = 0; i < 6; i++)
@@ -330,6 +342,8 @@ static void send_read_request()
 	readReqFrame.identifier = 0x6F1;
 	readReqFrame.data_length_code = 8;
 	readReqFrame.ss = 0;
+	readReqFrame.extd = 0;
+	readReqFrame.rtr = 0;
 	readReqFrame.data[0] = 0x12;
 	readReqFrame.data[1] = 0x02;
 	readReqFrame.data[2] = 0x21;
@@ -539,7 +553,7 @@ void loop() {
 	}
 
 	//Handle any message in the buffer until it is empty
-	while (twai_receive(&rxMessage, 10) == ESP_OK) {
+	while (twai_receive(&rxMessage, 0) == ESP_OK) {
 		rxED++;
 		handle_rx_message(rxMessage);
 	}
@@ -567,7 +581,7 @@ void loop() {
 			}
 		}
 		
-		if(Serial.read()>0) twaiStatusWatchdog();
+		twaiStatusWatchdog();
 		
 	}
 }
