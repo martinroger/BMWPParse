@@ -129,8 +129,8 @@ void setup()
 	// TWAI driver is now successfully installed and started
   	driver_installed = true;
 
-	Serial.println(sizeof(rxMessage));
-	Serial.println(sizeof(txBuffer));
+	//Serial.println(sizeof(rxMessage));
+	//Serial.println(sizeof(txBuffer));
 
 }
 
