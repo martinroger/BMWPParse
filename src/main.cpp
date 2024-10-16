@@ -10,10 +10,10 @@
 	#define CAN_RX D1
 #endif
 
-#define CYCLIC_TRANSMIT_RATE_MS 100 //50 necessary, works down to 10
+#define CYCLIC_TRANSMIT_RATE_MS 5 //50 necessary, works down to 10
 #define WAIT_FOR_ALERTS_MS 0
 #define TX_TIME_OUT 0
-#define MAX_REQS 20000
+#define MAX_REQS 30000
 unsigned long requests = 0;
 
 enum KWP_FRAME_TYPE : byte
@@ -51,12 +51,15 @@ unsigned long previousDebug = 0;	//Will store last time the alerts were sent ove
 uint32_t alerts_triggered;
 unsigned long currentMillis;
 twai_message_t rxMessage;
+twai_message_t txBuffer[16];
+int txBufferLen = 0;
 unsigned long txED;
 unsigned long rxED;
 
 bool DDLICleared = false;
 bool DDLISet = false;
 bool waitForResp = false;
+bool DONE = false;
 
 
 //Setup function
@@ -126,6 +129,9 @@ void setup()
 	// TWAI driver is now successfully installed and started
   	driver_installed = true;
 
+	Serial.println(sizeof(rxMessage));
+	Serial.println(sizeof(txBuffer));
+
 }
 
 //Twai status watchdog
@@ -144,6 +150,30 @@ void twaiStatusWatchdog()
 	Serial.printf("REQs:%lu\n",requests);
 }
 
+
+static void queue_in_txBuffer(twai_message_t txBuf[], int* bufLen, twai_message_t qFrame)
+{
+	txBuf[*bufLen] = qFrame;
+	*bufLen = *bufLen +1;
+}
+
+static bool pop_txBuffer(twai_message_t txBuf[], int* bufLen)
+{
+	bool ret = false;
+	if(*bufLen<1) return ret;
+	if(twai_transmit(&(txBuf[0]),pdMS_TO_TICKS(TX_TIME_OUT))==ESP_OK)
+	{
+		*bufLen = *bufLen -1;
+		for (int i = 0; i < *bufLen; i++)
+		{
+			txBuf[i] = txBuf[i+1];
+		}
+		txED++;
+		ret = true;
+	}
+	//Serial.println(*bufLen);
+	return ret;
+}
 
 
 //Transmit handler
@@ -187,15 +217,16 @@ static void send_pos_response(byte reqSID)
 	posRespFrame.data[0] = 0x12;
 	posRespFrame.data[1] = 0x01;
 	posRespFrame.data[2] = reqSID + 0x40;
-	if (twai_transmit(&posRespFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
-	{
-		//printf("Message queued for transmission\n");
-		txED++;
-	} 
-	else 
-	{
-		//printf("Failed to queue message for transmission\n");
-	}
+	// if (twai_transmit(&posRespFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
+	// {
+	// 	//printf("Message queued for transmission\n");
+	// 	txED++;
+	// } 
+	// else 
+	// {
+	// 	//printf("Failed to queue message for transmission\n");
+	// }
+	queue_in_txBuffer(txBuffer,&txBufferLen,posRespFrame);
 }
 
 static void send_clear_request()
@@ -211,16 +242,18 @@ static void send_clear_request()
 	clearReqFrame.data[2] = 0x2C;
 	clearReqFrame.data[3] = 0xF0;
 	clearReqFrame.data[4] = 0x04;
-	if (twai_transmit(&clearReqFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
-	{
-		//printf("Message queued for transmission\n");
-		txED++;
-		waitForResp=true;
-	} 
-	else 
-	{
-		//printf("Failed to queue message for transmission\n");
-	}
+	// if (twai_transmit(&clearReqFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
+	// {
+	// 	//printf("Message queued for transmission\n");
+	// 	txED++;
+	// 	waitForResp=true;
+	// } 
+	// else 
+	// {
+	// 	//printf("Failed to queue message for transmission\n");
+	// }
+	queue_in_txBuffer(txBuffer,&txBufferLen,clearReqFrame);
+	waitForResp=true;
 }
 
 static void send_flow_control(byte targetID)
@@ -236,16 +269,18 @@ static void send_flow_control(byte targetID)
 	flowControlFrame.data[2] = 0x00;
 	flowControlFrame.data[3] = 0x00;
 	flowControlFrame.data[4] = 0x00;
-	if (twai_transmit(&flowControlFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
-	{
-		//printf("Message queued for transmission\n");
-		txED++;
-		waitForResp = true;
-	} 
-	else 
-	{
-		//printf("Failed to queue message for transmission\n");
-	}
+	// if (twai_transmit(&flowControlFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
+	// {
+	// 	//printf("Message queued for transmission\n");
+	// 	txED++;
+	// 	waitForResp = true;
+	// } 
+	// else 
+	// {
+	// 	//printf("Failed to queue message for transmission\n");
+	// }
+	queue_in_txBuffer(txBuffer,&txBufferLen,flowControlFrame);
+	waitForResp=true;
 }
 
 static void send_DDLISet_FF()
@@ -277,16 +312,18 @@ static void send_DDLISet_FF()
 		DDLISet_firstFrame.data[i+4] = tempPayload[i];
 	}
 
-	if (twai_transmit(&DDLISet_firstFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
-	{
-		//printf("Message queued for transmission\n");
-		txED++;
-		waitForResp = true;
-	} 
-	else 
-	{
-		//printf("Failed to queue message for transmission\n");
-	}
+	// if (twai_transmit(&DDLISet_firstFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
+	// {
+	// 	//printf("Message queued for transmission\n");
+	// 	txED++;
+	// 	waitForResp = true;
+	// } 
+	// else 
+	// {
+	// 	//printf("Failed to queue message for transmission\n");
+	// }
+	queue_in_txBuffer(txBuffer,&txBufferLen,DDLISet_firstFrame);
+	waitForResp=true;
 
 }
 
@@ -324,16 +361,18 @@ byte tempPayload[] = {
 		}
 	}
 
-	if (twai_transmit(&DDLISet_contFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
-	{
-		//printf("Message queued for transmission\n");
-		txED++;
-		waitForResp = true;
-	} 
-	else 
-	{
-		//printf("Failed to queue message for transmission\n");
-	}
+	// if (twai_transmit(&DDLISet_contFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
+	// {
+	// 	//printf("Message queued for transmission\n");
+	// 	txED++;
+	// 	waitForResp = true;
+	// } 
+	// else 
+	// {
+	// 	//printf("Failed to queue message for transmission\n");
+	// }
+	queue_in_txBuffer(txBuffer,&txBufferLen,DDLISet_contFrame);
+	waitForResp=true;
 }
 
 static void send_read_request()
@@ -349,16 +388,19 @@ static void send_read_request()
 	readReqFrame.data[2] = 0x21;
 	readReqFrame.data[3] = 0xF0;
 
-	if (twai_transmit(&readReqFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
-	{
-		//printf("Message queued for transmission\n");
-		txED++;
-		waitForResp = true;
-	} 
-	else 
-	{
-		//printf("Failed to queue message for transmission\n");
-	}
+	// if (twai_transmit(&readReqFrame, pdMS_TO_TICKS(TX_TIME_OUT)) == ESP_OK) 
+	// {
+	// 	//printf("Message queued for transmission\n");
+	// 	txED++;
+	// 	waitForResp = true;
+	// } 
+	// else 
+	// {
+	// 	//printf("Failed to queue message for transmission\n");
+	// }
+	queue_in_txBuffer(txBuffer,&txBufferLen,readReqFrame);
+	waitForResp=true;
+	requests++;
 }
 
 //Incoming handler
@@ -509,6 +551,8 @@ static void handle_rx_message(twai_message_t inFrame)
 	}
 }
 
+
+
 void loop() {
 	//Eject if driver is uninstalled
 	if (!driver_installed) {
@@ -558,7 +602,8 @@ void loop() {
 		handle_rx_message(rxMessage);
 	}
 	
-	
+
+
 	// Send message
 	currentMillis = millis();
 	if (currentMillis - previousMillis >= CYCLIC_TRANSMIT_RATE_MS) {
@@ -581,14 +626,17 @@ void loop() {
 			}
 		}
 		
-		//twaiStatusWatchdog();
+		if(txBufferLen>0) 
+		{
+			if(!pop_txBuffer(txBuffer,&txBufferLen)) twaiStatusWatchdog();
+		}
 		
 	}
 
-	if(requests>=MAX_REQS)
+	if(requests>=MAX_REQS && !DONE)
 	{
 		twaiStatusWatchdog();
 		Serial.println("Done.");
-		return;
+		DONE = true;
 	}
 }
