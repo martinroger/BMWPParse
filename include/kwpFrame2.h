@@ -62,9 +62,4 @@ class kwpFrame
 
 #pragma region PRESET OBJECTS
 
-static const byte _readDDLI[1] = {0xF0};
-static const byte _clearDDLI[2] = {0xF0,0x04};
-kwpFrame kwp_reqReadDDLI(TARGET_ID,ECU_ID,0x21,1,_readDDLI);
-kwpFrame kwp_reqClearDDLI(TARGET_ID,ECU_ID,0x2C,2,_clearDDLI);
-
 #pragma endregion

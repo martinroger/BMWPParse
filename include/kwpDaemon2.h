@@ -80,26 +80,40 @@ enum KWP_DAEMON_STATE
 class kwp_Daemon
 {
     public:
+        
         KWP_DAEMON_STATE status = KWP_DAEMON_INIT_ST;
-        twai_message_t txBuffer[KWP_DAEMON_TX_BUFFER_LEN];
+
+        kwp_Daemon(byte _senderID, byte _targetID);
 
         bool begin();
         bool reset();
         bool tick();
-        bool processRXCanFrame(twai_message_t frameToProcess);
+        bool processRXCanFrame(twai_message_t* frameToProcess); //Takes a pointed CAN Frame and processes it
+
+        byte targetID = KWP_DAEMON_TARGET_ID;
+        byte senderID = KWP_DAEMON_ECU_ID;
+
     private:
-        bool _waitForFCFrame = false;
-        unsigned long lastKWPReceived_ts = 0;
+        bool _waitForFCFrame = false;                           //Set up by the txQueue popper, down on reception
 
-        bool _pushToTxBuffer(twai_message_t frameToQueue);
-        bool _popTxBuffer(); //Can modify internally _waitForFCFrame
+        unsigned long _lastKWPReceived_ts = 0;                  //Timeout variable for last KWP received
+
+        twai_message_t _txBuffer[KWP_DAEMON_TX_BUFFER_LEN];
+        uint16_t _txBufferLen = 0;
+
+        kwpFrame _rxFrame;
+
+        bool _processRXKwpFrame(kwpFrame* frameToProcess);      //Takes a pointed frame and processes it
+
+        bool _pushToTxBuffer(twai_message_t frameToQueue);      //Used internally in the other methods
+        bool _popTxBuffer();                                    //Can modify internally _waitForFCFrame after popping
         
-        void _ReqClearDDLI();
-        void _ReqSetDDLI();
-        void _ReqReadDDLI();
+        bool _ReqClearDDLI();                                   //Very basic sending of clear request
+        bool _ReqSetDDLI();                                     //Calculates and send the DDLI request
+        bool _ReqReadDDLI();                                    //Very basic sending of read request
 
-        void _sendFCFrame();
-        void _twaiStatusWatchDog();
+        bool _sendFCFrame();                                    //For flow control
+        void _twaiStatusWatchDog();                             //For debug
 };
 #pragma endregion
 
