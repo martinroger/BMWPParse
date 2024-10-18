@@ -12,7 +12,7 @@
 //#include "esp_log.h"
 #include "driver/twai.h"
 
-kwp_Daemon moloch(0xF1,0x12);
+kwpDaemon moloch(0xF1,0x12);
 twai_message_t rxMessage;
 
 

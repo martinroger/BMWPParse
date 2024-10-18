@@ -89,14 +89,14 @@ enum KWP_DAEMON_STATE
 
 
 #pragma region CLASS DEFINITION
-class kwp_Daemon
+class kwpDaemon
 {
     public:
         
         KWP_DAEMON_STATE status = KWP_DAEMON_INIT_ST;
 
-        kwp_Daemon(byte _senderID, byte _targetID);
-        kwp_Daemon() = default;
+        kwpDaemon(byte _senderID, byte _targetID);
+        kwpDaemon() = default;
 
         bool begin(uint8_t _canTx = CAN_TX, uint8_t _canRx = CAN_RX);
         bool reset();

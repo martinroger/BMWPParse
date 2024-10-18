@@ -1,10 +1,10 @@
-#pragma once
+
 #include <kwpDaemon.h>
 
 /// @brief 
 /// @param _senderID 
 /// @param _targetID 
-kwp_Daemon::kwp_Daemon(byte _senderID, byte _targetID) : senderID(_senderID), targetID(_targetID)
+kwpDaemon::kwpDaemon(byte _senderID, byte _targetID) : senderID(_senderID), targetID(_targetID)
 {
 }
 
@@ -12,7 +12,7 @@ kwp_Daemon::kwp_Daemon(byte _senderID, byte _targetID) : senderID(_senderID), ta
 /// @param _canTx 
 /// @param _canRx 
 /// @return 
-bool kwp_Daemon::begin(uint8_t _canTx, uint8_t _canRx)
+bool kwpDaemon::begin(uint8_t _canTx, uint8_t _canRx)
 {
     bool ret = false;
 
@@ -76,7 +76,7 @@ bool kwp_Daemon::begin(uint8_t _canTx, uint8_t _canRx)
 
 /// @brief 
 /// @return 
-bool kwp_Daemon::reset()
+bool kwpDaemon::reset()
 {
     //Reset state
     status = KWP_DAEMON_INIT_ST;
@@ -92,7 +92,7 @@ bool kwp_Daemon::reset()
 /// @brief Ticker for the daemon. Defines state-related actions, and timer-related actions
 /// @param inhibit External inhibit parameter. Will cause periodical resets and stop communication as long as it is active
 /// @return TBD
-bool kwp_Daemon::tick(bool inhibit)
+bool kwpDaemon::tick(bool inhibit)
 {
     bool ret = true; //Inverted logic, faults set false
     unsigned long currentMillis = millis();
@@ -194,7 +194,7 @@ bool kwp_Daemon::tick(bool inhibit)
 /// @brief Process a candidate CAN Frame for KWP telegram, called from loop() when a twai_message_t is received. Does not reset KWP timeout !!
 /// @param frameToProcess Candidate CAN Frame that has to be processed. Target/sender filtration happens in the function
 /// @return False if processing failed, wrong target, wrong sender, failed subprocessing, unexpected frame. True if subprocessing went OK
-bool kwp_Daemon::processRXCanFrame(twai_message_t* frameToProcess)
+bool kwpDaemon::processRXCanFrame(twai_message_t* frameToProcess)
 {
     bool ret = false;
     
@@ -293,7 +293,7 @@ bool kwp_Daemon::processRXCanFrame(twai_message_t* frameToProcess)
 /// @brief In spirit an SID processor. Called in line with the processRXCanFrame in loop()
 /// @param frameToProcess 
 /// @return True in case of error-free process, including if there are successful status resets. False if there is a TX error or anything leading to a fall back to INIT
-bool kwp_Daemon::_processRXKwpFrame(kwpFrame *frameToProcess)
+bool kwpDaemon::_processRXKwpFrame(kwpFrame *frameToProcess)
 {
     bool ret = false;
     KWP_DAEMON_STATE prevStatus = status;
@@ -417,7 +417,7 @@ bool kwp_Daemon::_processRXKwpFrame(kwpFrame *frameToProcess)
 /// @brief Appends a twai_message_t to the daemon buffer in a FIFO style
 /// @param frameToQueue twai_message_t to append at the end of the queue
 /// @return false if the queue is full
-bool kwp_Daemon::_pushToTxBuffer(twai_message_t frameToQueue)
+bool kwpDaemon::_pushToTxBuffer(twai_message_t frameToQueue)
 {
     bool ret = false;
     
@@ -438,7 +438,7 @@ bool kwp_Daemon::_pushToTxBuffer(twai_message_t frameToQueue)
 
 /// @brief Attempts to transmit the oldest twai_message_t in the queue. Called from tick.
 /// @return True if the queue is empty, or if there is a FC Frame hold, or if the transmit was successful. False otherwise (usually transmit errors)
-bool kwp_Daemon::_popTxBuffer()
+bool kwpDaemon::_popTxBuffer()
 {
     bool ret = false;
     //Immediately quit if the tx buffer is empty or there is pending incoming FC Frame
@@ -474,7 +474,7 @@ bool kwp_Daemon::_popTxBuffer()
 /// @brief Converts a healthy KWPFrame into a series of twai_message_t all sent to the Tx Buffer
 /// @param frameToPackage Target KWP Frame to slice and dice
 /// @return True if all OK, false if there is an issue pushing to the Buffer, typically overrun
-bool kwp_Daemon::_packageKWPFrame(kwpFrame *frameToPackage)
+bool kwpDaemon::_packageKWPFrame(kwpFrame *frameToPackage)
 {
     bool ret = false;
 
@@ -560,7 +560,7 @@ bool kwp_Daemon::_packageKWPFrame(kwpFrame *frameToPackage)
 
 /// @brief 
 /// @return 
-bool kwp_Daemon::_ReqClearDDLI()
+bool kwpDaemon::_ReqClearDDLI()
 {
     bool ret = false;
     const byte buf[2] = {0xF0,0x04};
@@ -571,7 +571,7 @@ bool kwp_Daemon::_ReqClearDDLI()
 
 /// @brief 
 /// @return 
-bool kwp_Daemon::_ReqSetDDLI()
+bool kwpDaemon::_ReqSetDDLI()
 {
     bool ret = false;
     const byte buf[55] = {
@@ -591,7 +591,7 @@ bool kwp_Daemon::_ReqSetDDLI()
     return ret;
 }
 
-bool kwp_Daemon::_ReqReadDDLI()
+bool kwpDaemon::_ReqReadDDLI()
 {
     bool ret = false;
     const byte buf[1] = {0xF0};
@@ -600,7 +600,7 @@ bool kwp_Daemon::_ReqReadDDLI()
     return ret;
 }
 
-bool kwp_Daemon::_sendFCFrame()
+bool kwpDaemon::_sendFCFrame()
 {
     bool ret = false;
     twai_message_t canFrame;
@@ -623,7 +623,7 @@ bool kwp_Daemon::_sendFCFrame()
     return ret;
 }
 
-void kwp_Daemon::_twaiStatusWatchDog()
+void kwpDaemon::_twaiStatusWatchDog()
 {
     uint32_t alerts_triggered;
     if (twai_read_alerts(&alerts_triggered, pdMS_TO_TICKS(0))==ESP_OK)
@@ -667,4 +667,9 @@ void kwp_Daemon::_twaiStatusWatchDog()
         Serial.printf("TX failed: %lu\t", twaistatus.tx_failed_count);
         Serial.printf("ARB lost: %lu\n", twaistatus.arb_lost_count);
     }
+}
+
+bool kwpDaemon::_parseDDLI()
+{
+    return true;
 }
