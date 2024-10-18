@@ -12,35 +12,11 @@
 #pragma endregion
 
 #pragma region UTILS
-template <typename T>
-T swap_endian(T u)
-{
-	static_assert (CHAR_BIT == 8, "CHAR_BIT != 8");
 
-	union
-	{
-		T u;
-		unsigned char u8[sizeof(T)];
-	} source, dest;
-
-	source.u = u;
-
-	for (size_t k = 0; k < sizeof(T); k++)
-		dest.u8[k] = source.u8[sizeof(T) - k - 1];
-
-	return dest.u;
-}
 #pragma endregion
 
 #pragma region ENUMS
-enum KWP_FRAME_TYPE : byte
-{
-	singleFrame         =   0x00,
-	firstFrame          =   0x10,
-	continuationFrame   =   0x20,
-	flowControlFrame    =   0x30,
-	invalidFrameType    =   0xFF
-};
+
 
 #pragma endregion
 
