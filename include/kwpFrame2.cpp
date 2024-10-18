@@ -55,6 +55,17 @@ kwpFrame::kwpFrame( byte _target,
     }
 }
 
+/// @brief Minimal constructor with target and sender ID
+/// @param _target ID of the target ECU for this KWP Frame
+/// @param _sender ID of the sender ECU for this KWP Frame
+kwpFrame::kwpFrame( byte _target, 
+                    byte _sender)
+                    :
+                    target(_target),
+                    sender(_sender)
+{
+}
+
 /// @brief Parses Metadata on first reception frame when in an RX position. Unused in TX
 /// @param canMetaFrame FirstFrame or SingleFrame (no Flow Control) to get the metadata from
 void kwpFrame::setMetadaData(twai_message_t *canMetaFrame)

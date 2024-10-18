@@ -50,6 +50,9 @@ class kwpFrame
                     const byte _dataBuf[], 
                     bool _rxComplete = true,
                     bool _multiFrame = false);
+        kwpFrame(   byte _target, 
+                    byte _sender); 
+        kwpFrame() = default;
         
         void setMetadaData(twai_message_t* canMetaFrame);
         void calculateMetaData();

@@ -4,31 +4,43 @@
 
 #pragma region DEFINES
 #ifndef KWP_DAEMON_ECU_ID
-    #define KWP_DAEMON_ECU_ID 0xF1
+    #define KWP_DAEMON_ECU_ID 0xF1              //6xxh style target ID
 #endif
 #ifndef KWP_DAEMON_TARGET_ID
-    #define KWP_DAEMON_TARGET_ID 0x12
+    #define KWP_DAEMON_TARGET_ID 0x12           //6xxh style target ID
 #endif
 #ifndef KWP_DAEMON_TX_INTERVAL_MS
-    #define KWP_DAEMON_TX_INTERVAL_MS 20
+    #define KWP_DAEMON_TX_INTERVAL_MS 20        //Interval between queue pops
+#endif
+#ifndef KWP_DAEMON_TICK_INTERVAL_MS
+    #define KWP_DAEMON_TICK_INTERVAL_MS 5       //Interval between tick calls
+#endif
+#ifndef KWP_DAEMON_READ_INTERVAL_MS
+    #define KWP_DAEMON_READ_INTERVAL_MS 100     //Interval between polling reads
 #endif
 #ifndef KWP_DAEMON_TX_TIMEOUT_MS
-    #define KWP_DAEMON_TX_TIMEOUT_MS 0
+    #define KWP_DAEMON_TX_TIMEOUT_MS 0          //TWAI timeout for transmit
 #endif
 #ifndef KWP_DAEMON_RX_TIMEOUT_MS
-    #define KWP_DAEMON_RX_TIMEOUT_MS 0
+    #define KWP_DAEMON_RX_TIMEOUT_MS 0          //TWAI timeout for receive
 #endif
 #ifndef KWP_DAEMON_TX_BUFFER_LEN
-    #define KWP_DAEMON_TX_BUFFER_LEN 16
+    #define KWP_DAEMON_TX_BUFFER_LEN 16         //Length of buffer of TWAI_MESSAGES
 #endif
 #ifndef KWP_DAEMON_TWAI_TXQUEUE_LEN
-    #define KWP_DAEMON_TWAI_TXQUEUE_LEN 16
+    #define KWP_DAEMON_TWAI_TXQUEUE_LEN 16      //TWAI TX Queue length
 #endif
 #ifndef KWP_DAEMON_TWAI_RXQUEUE_LEN
-    #define KWP_DAEMON_TWAI_RXQUEUE_LEN 16
+    #define KWP_DAEMON_TWAI_RXQUEUE_LEN 16      //TWAI RX Queue length
 #endif
-#ifndef KWP_DAEMON_NO_RESP_TIMEOUT_MS
-    #define KWP_DAEMON_NO_RESP_TIMEOUT_MS 1000
+#ifndef KWP_DAEMON_NO_RESP_TIMEOUT_MS       
+    #define KWP_DAEMON_NO_RESP_TIMEOUT_MS 1000  //Reset timeout in case of no response
+#endif
+#ifndef CAN_TX
+    #define CAN_TX 15
+#endif
+#ifndef CAN_RX
+    #define CAN_RX 16
 #endif
 #pragma endregion
 
@@ -71,7 +83,7 @@ enum KWP_DAEMON_STATE
     KWP_DAEMON_CLEAR_REQ_ST,
     KWP_DAEMON_SETUP_REQ_ST,
     KWP_DAEMON_READ_REQ_ST,
-    KWP_DAEMON_PARSE_ST
+    KWP_DAEMON_PARSED_ST
 };
 #pragma endregion
 
@@ -84,10 +96,11 @@ class kwp_Daemon
         KWP_DAEMON_STATE status = KWP_DAEMON_INIT_ST;
 
         kwp_Daemon(byte _senderID, byte _targetID);
+        kwp_Daemon() = default;
 
-        bool begin();
+        bool begin(uint8_t _canTx = CAN_TX, uint8_t _canRx = CAN_RX);
         bool reset();
-        bool tick();
+        bool tick(bool inhibit);
         bool processRXCanFrame(twai_message_t* frameToProcess); //Takes a pointed CAN Frame and processes it
 
         byte targetID = KWP_DAEMON_TARGET_ID;
@@ -96,7 +109,11 @@ class kwp_Daemon
     private:
         bool _waitForFCFrame = false;                           //Set up by the txQueue popper, down on reception
 
-        unsigned long _lastKWPReceived_ts = 0;                  //Timeout variable for last KWP received
+        unsigned long _lastKWPReceived_ts   =   0;              //Timer for last valid KWP interaction
+        unsigned long _lastTick_ts          =   0;              //Timer for tick()
+        unsigned long _lastRead_ts          =   0;              //Timer for polling read
+        unsigned long _lastTx_ts            =   0;              //Timer for last pop
+
 
         twai_message_t _txBuffer[KWP_DAEMON_TX_BUFFER_LEN];
         uint16_t _txBufferLen = 0;
@@ -107,10 +124,13 @@ class kwp_Daemon
 
         bool _pushToTxBuffer(twai_message_t frameToQueue);      //Used internally in the other methods
         bool _popTxBuffer();                                    //Can modify internally _waitForFCFrame after popping
-        
+        bool _packageKWPFrame(kwpFrame* frameToPackage);        //Takes a KWP Frame and slaps it in the queue
+
         bool _ReqClearDDLI();                                   //Very basic sending of clear request
         bool _ReqSetDDLI();                                     //Calculates and send the DDLI request
         bool _ReqReadDDLI();                                    //Very basic sending of read request
+
+        bool _parseDDLI();                                      //Effective parsing function
 
         bool _sendFCFrame();                                    //For flow control
         void _twaiStatusWatchDog();                             //For debug
