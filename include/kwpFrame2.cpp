@@ -1,13 +1,13 @@
 #include "kwpFrame2.h"
 
-/// @brief 
-/// @param _target 
-/// @param _sender 
-/// @param _SID 
-/// @param _length 
-/// @param _bufferLength 
-/// @param _rxComplete 
-/// @param _multiFrame 
+/// @brief Base constructor with direct assignment
+/// @param _target ID of the target ECU for this KWP Frame
+/// @param _sender ID of the sender ECU for this KWP Frame
+/// @param _SID SID of the KWP Frame
+/// @param _length Total payload length, including SID
+/// @param _bufferLength Total payload length, excluding SID
+/// @param _rxComplete Flag of completed reception (true by default)
+/// @param _multiFrame MultiFrame flag. False by default.
 kwpFrame::kwpFrame( byte _target, 
                     byte _sender, 
                     byte _SID, 
@@ -25,6 +25,14 @@ kwpFrame::kwpFrame( byte _target,
                     multiFrame(_multiFrame)
 {}
 
+/// @brief Base constructor with direct assignment
+/// @param _target ID of the target ECU for this KWP Frame
+/// @param _sender ID of the sender ECU for this KWP Frame
+/// @param _SID SID of the KWP Frame
+/// @param _dataBufLength Length of the base buffer to copy
+/// @param _dataBuf Base buffer to copy to the payload buffer, excluding SID
+/// @param _rxComplete Flag of completed reception (true by default)
+/// @param _multiFrame MultiFrame flag. False by default.
 kwpFrame::kwpFrame( byte _target, 
                     byte _sender, 
                     byte _SID, 
