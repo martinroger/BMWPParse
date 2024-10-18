@@ -1,5 +1,34 @@
 #include "kwpFrame2.h"
 
+/// @brief 
+/// @param _target 
+/// @param _sender 
+/// @param _SID 
+/// @param _length 
+/// @param _bufferLength 
+/// @param _rxComplete 
+/// @param _multiFrame 
+kwpFrame::kwpFrame(byte _target, byte _sender, byte _SID, uint16_t _length, uint16_t _bufferLength, bool _rxComplete, bool _multiFrame)
+{
+    target = _target;
+    sender = _sender;
+    SID = _SID;
+    length = _length;
+    bufferLength = _bufferLength;
+    rxComplete = _rxComplete;
+    multiFrame = _multiFrame;
+}
+
+/// @brief 
+/// @param _target 
+/// @param _sender 
+/// @param _SID 
+/// @param _bufferLength 
+kwpFrame::kwpFrame(byte _target, byte _sender, byte _SID, uint16_t _bufferLength)
+{
+    kwpFrame(_target,_sender,_SID,_bufferLength+1,_bufferLength);
+}
+
 /// @brief Parses Metadata on first reception frame when in an RX position. Unused in TX
 /// @param canMetaFrame FirstFrame or SingleFrame (no Flow Control) to get the metadata from
 void kwpFrame::setMetadaData(twai_message_t *canMetaFrame)

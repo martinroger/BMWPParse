@@ -60,11 +60,21 @@ class kwpFrame
         bool rxComplete             =   true;               //Indicates if the frame is completely received or not. Useful only in RX
         bool multiFrame             =   false;              //MultiCAN frame (or not) for both TX and RX
 
+        kwpFrame(byte _target, byte _sender, byte _SID, uint16_t _length, uint16_t _bufferLength, bool _rxComplete = true, bool _multiFrame = false);
+        kwpFrame(byte _target, byte _sender, byte _SID, uint16_t _bufferLength = 0);
+        
         void setMetadaData(twai_message_t* canMetaFrame);
         void calculateMetaData();
         bool appendCanFrameBuffer(twai_message_t* canFrame, uint8_t startPos = 2, uint8_t endPos = 7);
         void reset(byte _target = TARGET_ID, byte _sender = ECU_ID);
 };
 
+
+#pragma endregion
+
+#pragma region PRESET OBJECTS
+
+kwpFrame kwp_reqReadDDLI;
+kwpFrame kwp_reqClearDDLI;
 
 #pragma endregion
