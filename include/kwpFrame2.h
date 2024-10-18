@@ -60,8 +60,20 @@ class kwpFrame
         bool rxComplete             =   true;               //Indicates if the frame is completely received or not. Useful only in RX
         bool multiFrame             =   false;              //MultiCAN frame (or not) for both TX and RX
 
-        kwpFrame(byte _target, byte _sender, byte _SID, uint16_t _length, uint16_t _bufferLength, bool _rxComplete = true, bool _multiFrame = false);
-        kwpFrame(byte _target, byte _sender, byte _SID, uint16_t _bufferLength = 0);
+        kwpFrame(   byte _target, 
+                    byte _sender, 
+                    byte _SID, 
+                    uint16_t _length, 
+                    uint16_t _bufferLength, 
+                    bool _rxComplete = true,
+                    bool _multiFrame = false);
+        kwpFrame(   byte _target, 
+                    byte _sender, 
+                    byte _SID,
+                    uint16_t _dataBufLength,
+                    const byte _dataBuf[], 
+                    bool _rxComplete = true,
+                    bool _multiFrame = false);
         
         void setMetadaData(twai_message_t* canMetaFrame);
         void calculateMetaData();
@@ -74,7 +86,9 @@ class kwpFrame
 
 #pragma region PRESET OBJECTS
 
-kwpFrame kwp_reqReadDDLI;
-kwpFrame kwp_reqClearDDLI;
+static const byte _readDDLI[1] = {0xF0};
+static const byte _clearDDLI[2] = {0xF0,0x04};
+kwpFrame kwp_reqReadDDLI(TARGET_ID,ECU_ID,0x21,1,_readDDLI);
+kwpFrame kwp_reqClearDDLI(TARGET_ID,ECU_ID,0x2C,2,_clearDDLI);
 
 #pragma endregion
