@@ -1,66 +1,68 @@
 #pragma once
-#include <ESP32-TWAI-CAN.hpp>
-#include "esp_log.h"
+#include <Arduino.h>
+#include "driver/twai.h"
 
-#ifndef TX_FRAME_TIMEOUT
-	#define TX_FRAME_TIMEOUT 5
+#pragma region DEFINES
+#ifndef ECU_ID
+    #define ECU_ID 0xF1
 #endif
+#ifndef TARGET_ID
+    #define TARGET_ID 0x12
+#endif
+#pragma endregion
 
-template <typename T>
-T swap_endian(T u)
-{
-	static_assert (CHAR_BIT == 8, "CHAR_BIT != 8");
+#pragma region UTILS
 
-	union
-	{
-		T u;
-		unsigned char u8[sizeof(T)];
-	} source, dest;
+#pragma endregion
 
-	source.u = u;
+#pragma region ENUMS
 
-	for (size_t k = 0; k < sizeof(T); k++)
-		dest.u8[k] = source.u8[sizeof(T) - k - 1];
 
-	return dest.u;
-}
+#pragma endregion
 
-/// @brief 
-enum KWP_FRAME_TYPE : byte
-{
-	singleFrame         =   0x00,
-	firstFrame          =   0x10,
-	continuationFrame   =   0x20,
-	flowControlFrame    =   0x30,
-	invalidFrameType    =   0xFF
-};
+#pragma region CLASS DEFINITION
 
-/// @brief 
+
 class kwpFrame
 {
-public:
-	byte target = 0x00;
-	byte sender = 0x00;
-	byte SID = 0x00;
-	uint16_t length = 2;
-	uint16_t payloadLength = 1;
-	byte cursor = 0;
-	byte payload[255];
-	KWP_FRAME_TYPE frameType;
+    public:
+        byte target                 =   TARGET_ID;          //Usually the first CAN data byte
+        byte sender                 =   ECU_ID;             //Usually the last byte of the CAN frame identifier
+        byte SID                    =   0x00;               //Determined only once in RX, set in TX
+        uint16_t length             =   2;                  //Length of payload + SID byte
+        uint16_t bufferLength       =   1;                  //Length of useful payload after the SID
+        byte cursor                 =   0;                  //Indicate currently writable byte in payload Buffer. Always less than bufferLength
+        byte buffer[255]            =   {0x00};             //255 bytes RX or TX buffer, indexable with cursor
+        bool rxComplete             =   true;               //Indicates if the frame is completely received or not. Useful only in RX
+        bool multiFrame             =   false;              //MultiCAN frame (or not) for both TX and RX
 
-	bool RXComplete     =   true;
-	bool pendingFCFrame =   false;
-	bool TXComplete     =   true;
-
-	void parseMetaData(CanFrame* rxFrame);
-	KWP_FRAME_TYPE processCanFrame(CanFrame* rxFrame);
-	void sendKwpFrame(bool singleShot = false,bool loopBack = false);
-	void printKwpFrame(Stream& targetStream = Serial);
-	void resetFrame();
-	void attachDebugSerial(Stream& targetSerial);
-private:
-	byte seqNumber;
-	//cursor could be private too
-	Stream& _debugSerial = Serial;
+        kwpFrame(   byte _target, 
+                    byte _sender, 
+                    byte _SID, 
+                    uint16_t _length, 
+                    uint16_t _bufferLength, 
+                    bool _rxComplete = true,
+                    bool _multiFrame = false);
+        kwpFrame(   byte _target, 
+                    byte _sender, 
+                    byte _SID,
+                    uint16_t _dataBufLength,
+                    const byte _dataBuf[], 
+                    bool _rxComplete = true,
+                    bool _multiFrame = false);
+        kwpFrame(   byte _target, 
+                    byte _sender); 
+        kwpFrame() = default;
+        
+        void setMetadaData(twai_message_t* canMetaFrame);
+        void calculateMetaData();
+        bool appendCanFrameBuffer(twai_message_t* canFrame, uint8_t startPos = 2, uint8_t endPos = 7);
+        void reset(byte _target = TARGET_ID, byte _sender = ECU_ID);
 };
 
+
+#pragma endregion
+
+#pragma region PRESET OBJECTS
+
+#pragma endregion
