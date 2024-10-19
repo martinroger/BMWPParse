@@ -16,7 +16,7 @@
     #define KWP_DAEMON_TICK_INTERVAL_MS 5       //Interval between tick calls
 #endif
 #ifndef KWP_DAEMON_READ_INTERVAL_MS
-    #define KWP_DAEMON_READ_INTERVAL_MS 100     //Interval between polling reads
+    #define KWP_DAEMON_READ_INTERVAL_MS 250     //Interval between polling reads
 #endif
 #ifndef KWP_DAEMON_TX_TIMEOUT_MS
     #define KWP_DAEMON_TX_TIMEOUT_MS 0          //TWAI timeout for transmit

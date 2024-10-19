@@ -201,7 +201,7 @@ bool kwpDaemon::processRXCanFrame(twai_message_t* frameToProcess)
     //Exclude frames that don't match the targetID and SenderID conditions
     if(((frameToProcess->identifier) == (0x600 + targetID)) && (frameToProcess->data[0] == senderID))
     {
-        byte typeNibble = frameToProcess->data[1] % 0xF0;       //Get frame type nibble
+        byte typeNibble = frameToProcess->data[1] & 0xF0;       //Get frame type nibble
         KWP_CANFRAME_TYPE frameType = INVALID_FRAME;            //Get frame type
         if(!(typeNibble>0x30))
         {
