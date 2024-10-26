@@ -15,6 +15,20 @@
 kwpDaemon moloch(0xF1,0x12);
 twai_message_t rxMessage;
 
+void dataUpdateCB()
+{
+	    Serial.printf("RPM: %d Rail Press: %1.2f MAF: %1.2f PreValve Press: %1.2f Speed: %1.2f Oiltemp: %d MotorTemp: %1.2f CoolantTemp: %1.2f IAT: %1.2f\n",  
+                                                                                                                                        (uint16_t)DDLI[0]->value,
+                                                                                                                                        DDLI[1]->value,
+                                                                                                                                        DDLI[2]->value,
+                                                                                                                                        DDLI[3]->value,
+                                                                                                                                        DDLI[4]->value,
+                                                                                                                                        (uint16_t)DDLI[5]->value,
+                                                                                                                                        DDLI[6]->value,
+                                                                                                                                        DDLI[7]->value,
+                                                                                                                                        DDLI[8]->value);
+}
+
 
 //Setup function
 void setup() 
@@ -36,6 +50,7 @@ void setup()
 
 	//Daemon is summoned
 	moloch.begin(CAN_TX,CAN_RX);
+	moloch.attachPostParseCB(dataUpdateCB);
 
 }
 

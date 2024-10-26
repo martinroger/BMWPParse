@@ -290,6 +290,13 @@ bool kwpDaemon::processRXCanFrame(twai_message_t* frameToProcess)
     return ret;
 }
 
+/// @brief Attaches a function to be called after _parseDDLI() returns true
+/// @param postParseCallBack Callback function, returns nothing and takes no argument.
+void kwpDaemon::attachPostParseCB(postParseCB_t postParseCallBack)
+{
+    _postParseCB = postParseCallBack;
+}
+
 /// @brief In spirit an SID processor. Called in line with the processRXCanFrame in loop()
 /// @param frameToProcess 
 /// @return True in case of error-free process, including if there are successful status resets. False if there is a TX error or anything leading to a fall back to INIT
@@ -356,6 +363,7 @@ bool kwpDaemon::_processRXKwpFrame(kwpFrame *frameToProcess)
         case KWP_DAEMON_READ_REQ_ST:    //Daemon had sent a read request, all is good
             if(_parseDDLI())    //Parsing was successful, reset timeout after moving to KWP_DAEMON_PARSED_ST. Tick() will send the next read request
             {
+                if(_postParseCB!=nullptr) _postParseCB();
                 status = KWP_DAEMON_PARSED_ST;
                 ret = true;
             }
@@ -712,5 +720,81 @@ void kwpDaemon::_twaiStatusWatchDog()
 
 bool kwpDaemon::_parseDDLI()
 {
-    return true;
+    bool ret = false;
+#ifdef STATIC_DDLI
+    ret = true;
+#else
+    // byte buf[55] = {
+    //     0xF0,
+    //  0x02, 0x01, 0x01, 0x58, 0x0C, 0x01, //Engine RPM, bytelength 1
+	// 	0x02, 0x02, 0x02, 0x58, 0xF0, 0x01, //Rail pressure, bytelength 2
+	// 	0x02, 0x04, 0x02, 0x5A, 0xBC, 0x01, //Mass Air Flow, bytelength 2
+	// 	0x02, 0x06, 0x02, 0x58, 0xDD, 0x01, //Pre_valve pressure, bytelength 2
+	// 	0x02, 0x08, 0x01, 0x58, 0x0D, 0x01, //Speed, bytelength 1
+	// 	0x02, 0x09, 0x01, 0x44, 0x02, 0x01, //OilTemp, bytelength 1
+	// 	0x02, 0x0A, 0x01, 0x58, 0x1F, 0x01, //Motor temp, bytelength 1
+	// 	0x02, 0x0B, 0x01, 0x58, 0x05, 0x01, //Coolant temp, bytelength 1
+	// 	0x02, 0x0C, 0x01, 0x58, 0x0F, 0x01  //IAT, bytelength1
+    //     };
+    
+    //Raw Payload: 0x61 0xF0 -  0x00 -  0x03 0x8A - 0x00 0x00 - 0x31 0x6E - 0x00 - 0x58 - 0x66 - 0x66 -  0x29 
+    uint16_t expectedBufLen = 0x01;
+    for (int i = 0; i < NUM_DIDS; i++)
+    {
+        expectedBufLen += DDLI[i]->memorySize;
+    }
+    if(expectedBufLen == _rxFrame.bufferLength)
+    {
+        uint16_t bufferCursor = 1;
+        for (int i = 0; i < NUM_DIDS; i++)
+        {
+            int32_t _mul = DDLI[i]->mul;
+            int32_t _div = DDLI[i]->div;
+            int32_t _add = DDLI[i]->add;
+            
+            //Do different actions depending on the size of the DID in memory
+            switch (DDLI[i]->memorySize)
+            {
+            case 1:
+                DDLI[i]->value = _add + (double)((_rxFrame.buffer[bufferCursor]*_mul)/(double)_div);
+                bufferCursor += 1;
+                break;
+            case 2:
+                //(swap_endian<uint16_t>(*((uint16_t*)&(frameToProcess->data[1]))) & 0x0FFF);
+                DDLI[i]->value = _add + (double)(((swap_endian<uint16_t>(*((uint16_t*)&(_rxFrame.buffer[bufferCursor]))))*_mul)/(double)_div);
+                bufferCursor += 2;
+                break;
+            default:
+                Serial.printf("%s\t Unexpected memory size, parse unsuccesful.\n",__func__);
+                ret = false;
+                return ret;
+                break;
+            }
+        }
+        ret = true;
+    }
+    else
+    {
+        Serial.printf("%s\t Unexpected buffer length, parse unsuccesful.\n",__func__);
+        ret = false;
+    }
+    
+    #ifdef DDLI_OUTPUT
+    if(ret)
+    {
+        Serial.printf("RPM: %d Rail Press: %1.2f MAF: %1.2f PreValve Press: %1.2f Speed: %1.2f Oiltemp: %d MotorTemp: %1.2f CoolantTemp: %1.2f IAT: %1.2f\n",  
+                                                                                                                                        (uint16_t)DDLI[0]->value,
+                                                                                                                                        DDLI[1]->value,
+                                                                                                                                        DDLI[2]->value,
+                                                                                                                                        DDLI[3]->value,
+                                                                                                                                        DDLI[4]->value,
+                                                                                                                                        (uint16_t)DDLI[5]->value,
+                                                                                                                                        DDLI[6]->value,
+                                                                                                                                        DDLI[7]->value,
+                                                                                                                                        DDLI[8]->value);
+    }
+    #endif
+
+#endif
+    return ret;
 }

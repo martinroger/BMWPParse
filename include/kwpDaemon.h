@@ -93,7 +93,8 @@ enum KWP_DAEMON_STATE
 class kwpDaemon
 {
     public:
-        
+        typedef void postParseCB_t(void);
+
         KWP_DAEMON_STATE status = KWP_DAEMON_INIT_ST;
 
         kwpDaemon(byte _senderID, byte _targetID);
@@ -106,6 +107,8 @@ class kwpDaemon
 
         byte targetID = KWP_DAEMON_TARGET_ID;
         byte senderID = KWP_DAEMON_ECU_ID;
+
+        void attachPostParseCB(postParseCB_t postParseCallBack);
 
     private:
         bool _waitForFCFrame = false;                           //Set up by the txQueue popper, down on reception
@@ -132,6 +135,7 @@ class kwpDaemon
         bool _ReqReadDDLI();                                    //Very basic sending of read request
 
         bool _parseDDLI();                                      //Effective parsing function
+        postParseCB_t* _postParseCB = nullptr;                  //Callback after successful parseDDLI
 
         bool _sendFCFrame();                                    //For flow control
         void _twaiStatusWatchDog();                             //For debug
