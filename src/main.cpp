@@ -24,14 +24,14 @@ void setup()
 	pinMode(LED_BUILTIN,OUTPUT);
 	digitalWrite(LED_BUILTIN,!LOW);
 	Serial.begin(115200);
-	while(millis()<2000 || Serial.available()) {
+/* 	while(millis()<2000 || Serial.available()) {
 		Serial.read();
 		digitalWrite(LED_BUILTIN,!HIGH);
 	}
 	while(Serial.available()==0 && millis()<60000) {
 		delay(10);
 		digitalWrite(LED_BUILTIN,!HIGH);
-	}
+	} */
 	digitalWrite(LED_BUILTIN,!LOW);
 
 	//Daemon is summoned

@@ -569,6 +569,7 @@ bool kwpDaemon::_ReqClearDDLI()
     return ret;
 }
 
+#ifdef STATIC_DDLI
 /// @brief 
 /// @return 
 bool kwpDaemon::_ReqSetDDLI()
@@ -590,6 +591,46 @@ bool kwpDaemon::_ReqSetDDLI()
     if(_packageKWPFrame(&frame)) ret = true;
     return ret;
 }
+#else
+/// @brief 
+/// @return 
+bool kwpDaemon::_ReqSetDDLI()
+{
+    bool ret = false;
+    byte bufLen = NUM_DIDS*6 + 1;
+    //Here some sanity checks should be done
+    byte buf[bufLen] = {0x00};
+    buf[0] = 0xF0;
+    byte tg_index = 0x01;
+    for (int i = 0; i < NUM_DIDS; i++)
+    {
+        buf[1+6*i]  =   0x02;
+        buf[2+6*i]  =   tg_index;
+        buf[3+6*i]  =   DDLI[i]->memorySize;
+        buf[4+6*i]  =   DDLI[i]->identifier[0];
+        buf[5+6*i]  =   DDLI[i]->identifier[1];
+        buf[6+6*i]  =   DDLI[i]->position;
+        tg_index += DDLI[i]->memorySize;
+        
+    }
+    
+    // byte buf[55] = {
+    //     0xF0,
+    //     0x02, 0x01, 0x01, 0x58, 0x0C, 0x01, //Engine RPM, bytelength 1
+	// 	0x02, 0x02, 0x02, 0x58, 0xF0, 0x01, //Rail pressure, bytelength 2
+	// 	0x02, 0x04, 0x02, 0x5A, 0xBC, 0x01, //Mass Air Flow, bytelength 2
+	// 	0x02, 0x06, 0x02, 0x58, 0xDD, 0x01, //Pre_valve pressure, bytelength 2
+	// 	0x02, 0x08, 0x01, 0x58, 0x0D, 0x01, //Speed, bytelength 1
+	// 	0x02, 0x09, 0x01, 0x44, 0x02, 0x01, //OilTemp, bytelength 1
+	// 	0x02, 0x0A, 0x01, 0x58, 0x1F, 0x01, //Motor temp, bytelength 1
+	// 	0x02, 0x0B, 0x01, 0x58, 0x05, 0x01, //Coolant temp, bytelength 1
+	// 	0x02, 0x0C, 0x01, 0x58, 0x0F, 0x01  //IAT, bytelength1
+    //     };
+    kwpFrame frame( targetID , senderID , 0x2C , bufLen ,buf );
+    if(_packageKWPFrame(&frame)) ret = true;
+    return ret;
+}
+#endif
 
 bool kwpDaemon::_ReqReadDDLI()
 {
