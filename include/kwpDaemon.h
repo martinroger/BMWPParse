@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <kwpFrame.h>
+#include <DDLI.h>
 
 #pragma region DEFINES
 #ifndef KWP_DAEMON_ECU_ID
